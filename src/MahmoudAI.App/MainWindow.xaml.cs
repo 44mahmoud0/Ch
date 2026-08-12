@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.Extensions.Logging;
 using MahmoudAI.Core.Persona;
 using MahmoudAI.Core.Security;
 using MahmoudAI.Core.Runtime;
