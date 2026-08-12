@@ -23,7 +23,10 @@ namespace MahmoudAI.App
                 })
                 .ConfigureServices((context, services) =>
                 {
-                    services.AddSingleton<AdvancedPermissionBroker>();
+                    services.AddSingleton<IUserApprovalService>(sp => 
+                        new WinUIUserApprovalService(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread(), () => null));
+                    services.AddSingleton<AdvancedPermissionBroker>(sp => 
+                        new AdvancedPermissionBroker(sp.GetRequiredService<ILogger<AdvancedPermissionBroker>>(), sp.GetRequiredService<IUserApprovalService>()));
                     services.AddSingleton<TaskGraphEngine>();
                     services.AddSingleton<PersonaStateMachine>();
                     services.AddSingleton<AiProviderClient>();

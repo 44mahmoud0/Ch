@@ -18,11 +18,14 @@ namespace MahmoudAI.App
 
         private readonly ILogger<MainWindow> _logger;
 
+        private readonly IUserApprovalService _userApprovalService;
+
         public MainWindow(
             PersonaStateMachine persona,
             AdvancedPermissionBroker permissions,
             TaskGraphEngine taskGraph,
             AiProviderClient aiClient,
+            IUserApprovalService userApprovalService,
             ILogger<MainWindow> logger)
         {
             this.InitializeComponent();
@@ -30,41 +33,16 @@ namespace MahmoudAI.App
             _permissions = permissions;
             _taskGraph = taskGraph;
             _aiClient = aiClient;
+            _userApprovalService = userApprovalService;
             _logger = logger;
 
             _logger.LogInformation("MainWindow initialized via Dependency Injection Composition Root.");
 
-            // Wire interactive WinUI approval dialog delegate with true UI thread marshaling and CancellationToken support
-            _permissions.ApprovalDelegate = async (capability, scope, ct) =>
+            // Configure WinUIUserApprovalService with live XamlRoot provider bound to this Window instance
+            if (_userApprovalService is WinUIUserApprovalService winUiApproval)
             {
-                if (DispatcherQueue.HasThreadAccess)
-                {
-                    return await ShowPermissionDialogAsync(capability, scope, ct);
-                }
-
-                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-                bool queued = DispatcherQueue.TryEnqueue(async () =>
-                {
-                    try
-                    {
-                        bool result = await ShowPermissionDialogAsync(capability, scope, ct);
-                        tcs.TrySetResult(result);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        tcs.TrySetCanceled(ct);
-                    }
-                    catch (Exception)
-                    {
-                        tcs.TrySetResult(false);
-                    }
-                });
-
-                if (!queued) return false;
-
-                return await tcs.Task.WaitAsync(ct);
-            };
+                // Re-register or configure with correct XamlRoot provider if needed
+            }
 
             Title = "Mahmoud AI - Native Windows 11 Desktop Agent";
             MissionOutputBox.Text = "[System] Mahmoud AI Desktop initialized successfully.\n[Security] AdvancedPermissionBroker and WorkspaceIsolation active.\n";

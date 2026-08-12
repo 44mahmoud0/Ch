@@ -34,11 +34,14 @@ namespace MahmoudAI.Core.Security
         public bool EmergencyStopTriggered { get; private set; } = false;
         public bool SafeModeActive { get; private set; } = false;
 
+        private readonly IUserApprovalService? _approvalService;
+
         public Func<CapabilityType, string, CancellationToken, Task<bool>>? ApprovalDelegate { get; set; }
 
-        public AdvancedPermissionBroker(ILogger<AdvancedPermissionBroker> logger)
+        public AdvancedPermissionBroker(ILogger<AdvancedPermissionBroker> logger, IUserApprovalService? approvalService = null)
         {
             _logger = logger;
+            _approvalService = approvalService;
         }
 
         public void TriggerEmergencyStop()
@@ -96,16 +99,22 @@ namespace MahmoudAI.Core.Security
                 }
             }
 
-            if (ApprovalDelegate is null)
-            {
-                _logger.LogWarning("No approval provider configured.");
-                return false;
-            }
-
             bool approved;
             try
             {
-                approved = await ApprovalDelegate(capability, scope, ct);
+                if (_approvalService != null)
+                {
+                    approved = await _approvalService.RequestApprovalAsync(capability, scope, ct);
+                }
+                else if (ApprovalDelegate != null)
+                {
+                    approved = await ApprovalDelegate(capability, scope, ct);
+                }
+                else
+                {
+                    _logger.LogWarning("No approval provider configured.");
+                    return false;
+                }
             }
             catch (OperationCanceledException)
             {
