@@ -41,6 +41,18 @@ namespace MahmoudAI.Storage
                     metadata TEXT,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS mission_checkpoints (
+                    mission_id TEXT PRIMARY KEY,
+                    state_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS mission_events (
+                    id TEXT PRIMARY KEY,
+                    mission_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
             ";
             command.ExecuteNonQuery();
             _logger.LogInformation("SQLite mission store initialized successfully.");
@@ -78,6 +90,32 @@ namespace MahmoudAI.Storage
             command.Parameters.AddWithValue("@metadata", metadata ?? string.Empty);
             command.Parameters.AddWithValue("@createdAt", DateTime.UtcNow.ToString("O"));
             await command.ExecuteNonQueryAsync(ct);
+        }
+
+        public async Task SaveCheckpointAsync(string missionId, string stateJson, CancellationToken ct)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync(ct);
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                INSERT OR REPLACE INTO mission_checkpoints (mission_id, state_json, updated_at)
+                VALUES (@missionId, @stateJson, @updatedAt);
+            ";
+            command.Parameters.AddWithValue("@missionId", missionId);
+            command.Parameters.AddWithValue("@stateJson", stateJson);
+            command.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("O"));
+            await command.ExecuteNonQueryAsync(ct);
+        }
+
+        public async Task<string?> GetCheckpointAsync(string missionId, CancellationToken ct)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync(ct);
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT state_json FROM mission_checkpoints WHERE mission_id = @missionId;";
+            command.Parameters.AddWithValue("@missionId", missionId);
+            var result = await command.ExecuteScalarAsync(ct);
+            return result?.ToString();
         }
     }
 }

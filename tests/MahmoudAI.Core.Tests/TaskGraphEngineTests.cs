@@ -54,5 +54,21 @@ namespace MahmoudAI.Core.Tests
             tools.Should().NotBeEmpty();
             tools.Should().Contain(t => t.Name == "mcp_filesystem_read");
         }
+
+        [Fact]
+        public async Task ExecuteGraphAsync_ShouldDetectCycles()
+        {
+            var logger = NullLogger<TaskGraphEngine>.Instance;
+            var engine = new TaskGraphEngine(logger);
+
+            var tasks = new List<MissionTask>
+            {
+                new MissionTask { Id = "t1", Name = "Task 1", Dependencies = { "t2" } },
+                new MissionTask { Id = "t2", Name = "Task 2", Dependencies = { "t1" } }
+            };
+
+            bool success = await engine.ExecuteGraphAsync(tasks, CancellationToken.None);
+            success.Should().BeFalse();
+        }
     }
 }
