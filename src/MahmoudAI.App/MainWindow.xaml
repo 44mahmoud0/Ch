@@ -7,11 +7,58 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="20">
-            <TextBlock Text="Mahmoud AI Desktop" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center"/>
-            <TextBlock Text="Autonomous multi-agent assistant for Windows 11 (.NET 10 LTS + WinUI 3)" FontSize="16" Foreground="Gray" HorizontalAlignment="Center"/>
-            <Button Content="Initialize Autonomous Mission" HorizontalAlignment="Center" Style="{StaticResource AccentButtonStyle}"/>
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="16" Margin="0,0,0,16">
+            <TextBlock Text="Mahmoud AI" FontSize="28" FontWeight="Bold" VerticalAlignment="Center"/>
+            <TextBlock x:Name="StatusTextBlock" Text="Status: Idle (Secure)" FontSize="14" Foreground="Green" VerticalAlignment="Center"/>
+            <Button x:Name="EmergencyStopButton" Content="🚨 EMERGENCY STOP" Click="EmergencyStopButton_Click" Background="DarkRed" Foreground="White" Margin="20,0,0,0"/>
         </StackPanel>
+
+        <!-- Main Split / Dashboard Content -->
+        <Grid Grid.Row="1" ColumnSpacing="24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Chat & Mission Log -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBox x:Name="MissionOutputBox" Grid.Row="0" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" PlaceholderText="Mission activity and agent telemetry logs will appear here..." FontFamily="Consolas" FontSize="13"/>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
+                    <TextBox x:Name="MissionInputBox" Width="400" PlaceholderText="Enter mission objective or prompt..."/>
+                    <Button x:Name="RunMissionButton" Content="Run Mission" Click="RunMissionButton_Click" Style="{StaticResource AccentButtonStyle}"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Right: Agent Team Status -->
+            <Border Grid.Column="1" BorderBrush="Gray" BorderThickness="1" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Agent Team (9 Roles)" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="AgentStatusManager" Text="• Manager: Ready"/>
+                    <TextBlock x:Name="AgentStatusPlanner" Text="• Planner: Ready"/>
+                    <TextBlock x:Name="AgentStatusResearch" Text="• Research: Ready"/>
+                    <TextBlock x:Name="AgentStatusCoding" Text="• Coding: Ready"/>
+                    <TextBlock x:Name="AgentStatusVision" Text="• Vision: Ready"/>
+                    <TextBlock x:Name="AgentStatusTool" Text="• Tool: Ready"/>
+                    <TextBlock x:Name="AgentStatusMemory" Text="• Memory: Ready"/>
+                    <TextBlock x:Name="AgentStatusVerifier" Text="• Verifier: Ready"/>
+                    <TextBlock x:Name="AgentStatusSafety" Text="• Safety: Active"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Footer -->
+        <TextBlock Grid.Row="2" Text=".NET 10 LTS • WinUI 3 • DPAPI Secured • SQLite Authoritative" FontSize="12" Foreground="Gray" Margin="0,16,0,0" HorizontalAlignment="Center"/>
     </Grid>
 </Window>
