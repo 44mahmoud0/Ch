@@ -18,3 +18,20 @@
 - [ ] Add Windows packaging workflow, MSIX path, and reproducible release documentation.
 - [ ] Verify all supported features on Windows or document Windows-only verification gaps.
 - [ ] Publish the independent desktop repository and important release files to GitHub.
+
+## New architecture-audit backlog
+
+- [ ] Adopt a real Microsoft Agent Framework adapter without replacing the Mahmoud Mission Runtime or Permission Broker.
+- [ ] Replace the provider fallback response with typed local/cloud provider contracts, health checks, retries, streaming, privacy policy, and budget enforcement.
+- [ ] Expand SQLite into the authoritative state store with profiles, missions, tasks, dependencies, grants, timeline, artifacts, experiences, and checkpoints.
+- [ ] Replace the automatic permission grant behavior with deterministic tool descriptors, normalized scopes, approval decisions, capability leases, and audit events.
+- [ ] Implement Workspace Isolation with path normalization, traversal/junction escape protection, and per-Mission artifact roots.
+- [ ] Replace the OCR simulated result with a Windows-specific capture/OCR adapter and a safe cross-platform fallback.
+- [ ] Add a UI Automation-first screen observation pipeline with capture/OCR/vision fallback provenance.
+- [ ] Add local speech provider interfaces for sherpa-onnx/whisper.cpp and an optional Azure Speech adapter without bundling credentials.
+- [ ] Add PresentMon-based read-only gaming telemetry contracts and exclude game-memory/input-cheat behavior.
+- [ ] Add official MCP C# SDK integration with tool reclassification through the Permission Broker.
+- [ ] Add OpenTelemetry/Serilog redaction policies and health states without exporting secrets, prompts, screenshots, or transcripts.
+- [ ] Add MSIX/App Installer and optional Velopack release workflows with signing documentation and SBOM/hash generation.
+- [ ] Add failure-injection, profile-isolation, permission-expiry, recovery, and duplicate-side-effect tests.
+- [ ] Reconcile all documentation and feature statuses after implementation; do not claim production readiness before Windows verification.
