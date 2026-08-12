@@ -12,6 +12,8 @@ namespace MahmoudAI.App
         private readonly AdvancedPermissionBroker _permissions;
         private readonly TaskGraphEngine _taskGraph;
 
+        private readonly AiProviderClient _aiClient;
+
         public MainWindow()
         {
             this.InitializeComponent();
@@ -19,6 +21,22 @@ namespace MahmoudAI.App
             _persona = new PersonaStateMachine(loggerFactory.CreateLogger<PersonaStateMachine>());
             _permissions = new AdvancedPermissionBroker(loggerFactory.CreateLogger<AdvancedPermissionBroker>());
             _taskGraph = new TaskGraphEngine(loggerFactory.CreateLogger<TaskGraphEngine>());
+            _aiClient = new AiProviderClient(loggerFactory.CreateLogger<AiProviderClient>());
+
+            // Wire interactive WinUI approval dialog delegate
+            _permissions.ApprovalDelegate = async (capability, scope) =>
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "Security Permission Request",
+                    Content = $"Agent requests capability [{capability}] on scope [{scope}]. Allow execution?",
+                    PrimaryButtonText = "Allow",
+                    CloseButtonText = "Deny",
+                    XamlRoot = this.Content.XamlRoot
+                };
+                var result = await dialog.ShowAsync();
+                return result == ContentDialogResult.Primary;
+            };
 
             Title = "Mahmoud AI - Native Windows 11 Desktop Agent";
             MissionOutputBox.Text = "[System] Mahmoud AI Desktop initialized successfully.\n[Security] AdvancedPermissionBroker and WorkspaceIsolation active.\n";
@@ -26,31 +44,25 @@ namespace MahmoudAI.App
 
         private async void RunMissionButton_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
         {
-            string objective = MissionInputBox.Text;
-            if (string.IsNullOrWhiteSpace(objective)) return;
+            string prompt = MissionInputBox.Text;
+            if (string.IsNullOrWhiteSpace(prompt)) return;
 
-            MissionOutputBox.Text += $"\n[Mission Started] Objective: {objective}\n";
-            StatusTextBlock.Text = "Status: Executing Mission...";
+            MissionOutputBox.Text += $"\n[User Prompt] {prompt}\n";
+            StatusTextBlock.Text = "Status: AI Provider Query...";
             StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Orange);
 
-            var tasks = new List<MissionTask>
+            try
             {
-                new MissionTask { Id = "t1", Name = "Planner Analysis", Action = async ct => { await Task.Delay(500, ct); return true; } },
-                new MissionTask { Id = "t2", Name = "Execution & Verification", Dependencies = { "t1" }, Action = async ct => { await Task.Delay(500, ct); return true; } }
-            };
-
-            bool success = await _taskGraph.ExecuteGraphAsync(tasks, CancellationToken.None);
-
-            if (success)
-            {
-                MissionOutputBox.Text += "[Mission Completed] All tasks executed successfully.\n";
+                // Query truthful AI provider (e.g. local Ollama or configured endpoint)
+                string response = await _aiClient.GenerateCompletionAsync("llama3", prompt, "http://localhost:11434", null, CancellationToken.None);
+                MissionOutputBox.Text += $"[AI Response] {response}\n";
                 StatusTextBlock.Text = "Status: Idle (Secure)";
                 StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
             }
-            else
+            catch (Exception ex)
             {
-                MissionOutputBox.Text += "[Mission Failed] Execution halted or cancelled.\n";
-                StatusTextBlock.Text = "Status: Failed / Stopped";
+                MissionOutputBox.Text += $"[Provider Error] {ex.Message}\n[Info] Ensure local Ollama is running or configure valid endpoint.\n";
+                StatusTextBlock.Text = "Status: Provider Error";
                 StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
             }
         }

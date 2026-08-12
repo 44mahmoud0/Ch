@@ -34,6 +34,8 @@ namespace MahmoudAI.Core.Security
         public bool EmergencyStopTriggered { get; private set; } = false;
         public bool SafeModeActive { get; private set; } = false;
 
+        public Func<CapabilityType, string, Task<bool>>? ApprovalDelegate { get; set; }
+
         public AdvancedPermissionBroker(ILogger<AdvancedPermissionBroker> logger)
         {
             _logger = logger;
@@ -83,9 +85,28 @@ namespace MahmoudAI.Core.Security
                 }
             }
 
-            // Grant temporary lease (in real app, triggers WinUI approval dialog)
+            // If approval delegate is registered, prompt interactively
+            bool approved = false;
+            if (ApprovalDelegate != null)
+            {
+                // Synchronously await or run approval delegate
+                approved = Task.Run(() => ApprovalDelegate(capability, scope)).GetAwaiter().GetResult();
+            }
+            else
+            {
+                // Default secure stance: deny if no approval delegate is set
+                _logger.LogWarning("No approval delegate registered. Denying capability request {Capability} on scope {Scope}", capability, scope);
+                return false;
+            }
+
+            if (!approved)
+            {
+                _logger.LogWarning("User or policy denied capability request {Capability} on scope {Scope}", capability, scope);
+                return false;
+            }
+
             var leaseId = Guid.NewGuid().ToString("N");
-            var newLease = new CapabilityLease(leaseId, capability, scope, DateTime.UtcNow, DateTime.UtcNow.Add(duration), "UserApproval");
+            var newLease = new CapabilityLease(leaseId, capability, scope, DateTime.UtcNow, DateTime.UtcNow.Add(duration), "UserApproved");
             _activeLeases[leaseId] = newLease;
             _logger.LogInformation("Granted capability lease {LeaseId} for {Capability} on scope {Scope} for {Duration}", leaseId, capability, scope, duration);
             return true;
