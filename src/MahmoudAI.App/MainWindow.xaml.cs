@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using MahmoudAI.Core.Persona;
 using MahmoudAI.Core.Security;
 using MahmoudAI.Core.Runtime;
+using MahmoudAI.Core.Engine;
 
 namespace MahmoudAI.App
 {
@@ -12,7 +13,7 @@ namespace MahmoudAI.App
         private readonly AdvancedPermissionBroker _permissions;
         private readonly TaskGraphEngine _taskGraph;
         private readonly AiProviderClient _aiClient;
-        private CancellationTokenSource _cts = new();
+        private CancellationTokenSource? _cts;
 
         public MainWindow()
         {
@@ -64,7 +65,7 @@ namespace MahmoudAI.App
             string goal = MissionInputBox.Text.Trim();
             if (string.IsNullOrWhiteSpace(goal)) return;
 
-            if (_cts != null && !_cts.IsCancellationRequested)
+            if (_cts is not null)
             {
                 MissionOutputBox.Text += "\n[System] A mission is already running.\n";
                 return;
@@ -77,6 +78,14 @@ namespace MahmoudAI.App
             StatusTextBlock.Text = "Status: Mission Running (TaskGraph)...";
             StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Blue);
 
+            void AppendLog(string message)
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    MissionOutputBox.Text += message;
+                });
+            }
+
             try
             {
                 var tasks = new List<MissionTask>
@@ -88,7 +97,7 @@ namespace MahmoudAI.App
                         Action = async ct =>
                         {
                             await Task.Delay(200, ct);
-                            MissionOutputBox.Text += "[Planner Agent] Deconstructed goal into subtasks.\n";
+                            AppendLog("[Planner Agent] Deconstructed goal into subtasks.\n");
                             return true;
                         }
                     },
@@ -103,12 +112,12 @@ namespace MahmoudAI.App
                             bool allowed = await _permissions.RequestCapabilityAsync(CapabilityType.FileWrite, "mission-workspace", TimeSpan.FromMinutes(5), ct);
                             if (allowed)
                             {
-                                MissionOutputBox.Text += "[Coding/Tool Agent] Capability granted. Executing mission steps securely.\n";
+                                AppendLog("[Coding/Tool Agent] Capability granted. Executing mission steps securely.\n");
                                 return true;
                             }
                             else
                             {
-                                MissionOutputBox.Text += "[Safety Agent] Capability denied by user or security policy.\n";
+                                AppendLog("[Safety Agent] Capability denied by user or security policy.\n");
                                 return false;
                             }
                         }
@@ -119,32 +128,49 @@ namespace MahmoudAI.App
 
                 if (success)
                 {
-                    MissionOutputBox.Text += "[Mission Complete] All task graph nodes executed successfully.\n";
-                    StatusTextBlock.Text = "Status: Idle (Secure)";
-                    StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
+                    AppendLog("[Mission Complete] All task graph nodes executed successfully.\n");
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        StatusTextBlock.Text = "Status: Idle (Secure)";
+                        StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
+                    });
                 }
                 else
                 {
-                    MissionOutputBox.Text += "[Mission Failed/Cancelled] Task graph execution did not complete successfully.\n";
-                    StatusTextBlock.Text = "Status: Failed / Cancelled";
-                    StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
+                    AppendLog("[Mission Failed/Cancelled] Task graph execution did not complete successfully.\n");
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        StatusTextBlock.Text = "Status: Failed / Cancelled";
+                        StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
+                    });
                 }
             }
             catch (OperationCanceledException)
             {
-                MissionOutputBox.Text += "\n[Mission Cancelled] Emergency Stop or user cancellation aborted active mission.\n";
-                StatusTextBlock.Text = "Status: Cancelled / Emergency Stop";
-                StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkRed);
+                AppendLog("\n[Mission Cancelled] Emergency Stop or user cancellation aborted active mission.\n");
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    StatusTextBlock.Text = "Status: Cancelled / Emergency Stop";
+                    StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkRed);
+                });
             }
             catch (Exception ex)
             {
-                MissionOutputBox.Text += $"\n[Mission Error] {ex.Message}\n";
-                StatusTextBlock.Text = "Status: Error";
-                StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
+                AppendLog($"\n[Mission Error] {ex.Message}\n");
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    StatusTextBlock.Text = "Status: Error";
+                    StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
+                });
             }
             finally
             {
-                RunMissionButton.IsEnabled = true;
+                _cts?.Dispose();
+                _cts = null;
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    RunMissionButton.IsEnabled = true;
+                });
             }
         }
 
