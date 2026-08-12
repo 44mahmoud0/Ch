@@ -109,7 +109,7 @@ namespace MahmoudAI.App
                         Action = async ct =>
                         {
                             await Task.Delay(300, ct);
-                            bool allowed = await _permissions.RequestCapabilityAsync(CapabilityType.FileWrite, "mission-workspace", TimeSpan.FromMinutes(5), ct);
+                            bool allowed = await _permissions.RequestCapabilityAsync(CapabilityType.FilesWrite, "mission-workspace", TimeSpan.FromMinutes(5), ct);
                             if (allowed)
                             {
                                 AppendLog("[Coding/Tool Agent] Capability granted. Executing mission steps securely.\n");
