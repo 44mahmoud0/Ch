@@ -144,71 +144,72 @@ namespace MahmoudAI.Core.Engine
                         {
                             progressMade = true;
 
-                        _ = Task.Run(async () =>
-                        {
-                            await semaphore.WaitAsync(cancellationToken);
-                            try
+                            _ = Task.Run(async () =>
                             {
-                            int attempt = 0;
-                            bool success = false;
-
-                            while (attempt <= task.MaxRetries && !success)
-                            {
-                                attempt++;
-                                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                                cts.CancelAfter(task.Timeout);
-
+                                await semaphore.WaitAsync(cancellationToken);
                                 try
                                 {
-                                    task.Status = TaskStatus.Running;
-                                    _logger.LogInformation("Executing task {TaskId}: {TaskName} (Attempt {Attempt}/{MaxRetries})", task.Id, task.Name, attempt, task.MaxRetries + 1);
-                                    
-                                    success = await task.Action(cts.Token);
-                                    if (success)
+                                    int attempt = 0;
+                                    bool success = false;
+
+                                    while (attempt <= task.MaxRetries && !success)
                                     {
-                                        task.Status = TaskStatus.Completed;
-                                        lock (completed) { completed.Add(task.Id); }
-                                        break;
+                                        attempt++;
+                                        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                                        cts.CancelAfter(task.Timeout);
+
+                                        try
+                                        {
+                                            task.Status = TaskStatus.Running;
+                                            _logger.LogInformation("Executing task {TaskId}: {TaskName} (Attempt {Attempt}/{MaxRetries})", task.Id, task.Name, attempt, task.MaxRetries + 1);
+                                            
+                                            success = await task.Action(cts.Token);
+                                            if (success)
+                                            {
+                                                task.Status = TaskStatus.Completed;
+                                                lock (completed) { completed.Add(task.Id); }
+                                                break;
+                                            }
+                                        }
+                                        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                                        {
+                                            task.Status = TaskStatus.TimedOut;
+                                            task.Error = $"Task timed out after {task.Timeout.TotalSeconds} seconds.";
+                                            _logger.LogWarning("Task {TaskId} timed out", task.Id);
+                                            break;
+                                        }
+                                        catch (Exception ex) when (attempt <= task.MaxRetries)
+                                        {
+                                            _logger.LogWarning(ex, "Task {TaskId} attempt {Attempt} failed, retrying...", task.Id, attempt);
+                                            await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), cancellationToken);
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            task.Status = TaskStatus.Failed;
+                                            task.Error = ex.Message;
+                                            _logger.LogError(ex, "Task {TaskId} failed permanently", task.Id);
+                                        }
                                     }
-                                }
-                                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                                {
-                                    task.Status = TaskStatus.TimedOut;
-                                    task.Error = $"Task timed out after {task.Timeout.TotalSeconds} seconds.";
-                                    _logger.LogWarning("Task {TaskId} timed out", task.Id);
-                                    break;
-                                }
-                                catch (Exception ex) when (attempt <= task.MaxRetries)
-                                {
-                                    _logger.LogWarning(ex, "Task {TaskId} attempt {Attempt} failed, retrying...", task.Id, attempt);
-                                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), cancellationToken);
-                                }
-                                catch (Exception ex)
-                                {
-                                    task.Status = TaskStatus.Failed;
-                                    task.Error = ex.Message;
-                                    _logger.LogError(ex, "Task {TaskId} failed permanently", task.Id);
-                                }
-                            }
 
-                            if (!success && task.Status != TaskStatus.TimedOut && task.Status != TaskStatus.Failed)
-                            {
-                                task.Status = TaskStatus.Failed;
-                                task.Error = "Task failed after all retry attempts.";
-                            }
+                                    if (!success && task.Status != TaskStatus.TimedOut && task.Status != TaskStatus.Failed)
+                                    {
+                                        task.Status = TaskStatus.Failed;
+                                        task.Error = "Task failed after all retry attempts.";
+                                    }
 
-                            if (task.Status == TaskStatus.Failed || task.Status == TaskStatus.TimedOut)
-                            {
-                                lock (failed) { failed.Add(task.Id); }
-                            }
+                                    if (task.Status == TaskStatus.Failed || task.Status == TaskStatus.TimedOut)
+                                    {
+                                        lock (failed) { failed.Add(task.Id); }
+                                    }
 
-                            lock (running) { running.Remove(task.Id); }
-                            }
-                            finally
-                            {
-                                semaphore.Release();
-                            }
-                        }, cancellationToken);
+                                    lock (running) { running.Remove(task.Id); }
+                                }
+                                finally
+                                {
+                                    semaphore.Release();
+                                }
+                            }, cancellationToken);
+                        }
                     }
                 }
 

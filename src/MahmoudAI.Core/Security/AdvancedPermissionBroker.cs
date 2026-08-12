@@ -89,12 +89,18 @@ namespace MahmoudAI.Core.Security
             bool approved = false;
             if (ApprovalDelegate != null)
             {
-                // Synchronously await or run approval delegate
-                approved = Task.Run(() => ApprovalDelegate(capability, scope)).GetAwaiter().GetResult();
+                try
+                {
+                    approved = ApprovalDelegate(capability, scope).GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error during interactive capability approval for {Capability}", capability);
+                    approved = false;
+                }
             }
             else
             {
-                // Default secure stance: deny if no approval delegate is set
                 _logger.LogWarning("No approval delegate registered. Denying capability request {Capability} on scope {Scope}", capability, scope);
                 return false;
             }

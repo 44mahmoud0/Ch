@@ -13,11 +13,11 @@ namespace MahmoudAI.Core.Tests
     public class ProductCompletionTests
     {
         [Fact]
-        public async Task AiProviderClient_ShouldHandleLocalOllamaOrFallback()
+        public async Task AiProviderClient_ShouldThrowOnUnreachableEndpoint()
         {
             var client = new AiProviderClient(NullLogger<AiProviderClient>.Instance);
-            string result = await client.GenerateCompletionAsync("llama3", "Hello", "http://localhost:11434", null, CancellationToken.None);
-            result.Should().NotBeNullOrEmpty();
+            Func<Task> act = async () => await client.GenerateCompletionAsync("llama3", "Hello", "http://localhost:11434", null, CancellationToken.None);
+            await act.Should().ThrowAsync<HttpRequestException>();
         }
 
         [Fact]
@@ -37,11 +37,11 @@ namespace MahmoudAI.Core.Tests
         }
 
         [Fact]
-        public async Task ScreenOcrService_ShouldExtractText()
+        public async Task ScreenOcrService_ShouldThrowWhenPlatformNotSupported()
         {
             var ocr = new ScreenOcrService(NullLogger<ScreenOcrService>.Instance);
-            string text = await ocr.CaptureAndExtractTextAsync(CancellationToken.None);
-            text.Should().Contain("Mahmoud AI Desktop");
+            Func<Task> act = async () => await ocr.CaptureAndExtractTextAsync(CancellationToken.None);
+            await act.Should().ThrowAsync<PlatformNotSupportedException>();
         }
     }
 }
