@@ -8,10 +8,10 @@ namespace MahmoudAI.Core.Automation
 {
     public class WindowsAutomationEngine
     {
-        private readonly PermissionBroker _permissionBroker;
+        private readonly AdvancedPermissionBroker _permissionBroker;
         private readonly ILogger<WindowsAutomationEngine> _logger;
 
-        public WindowsAutomationEngine(PermissionBroker permissionBroker, ILogger<WindowsAutomationEngine> logger)
+        public WindowsAutomationEngine(AdvancedPermissionBroker permissionBroker, ILogger<WindowsAutomationEngine> logger)
         {
             _permissionBroker = permissionBroker;
             _logger = logger;
@@ -19,9 +19,9 @@ namespace MahmoudAI.Core.Automation
 
         public Task<bool> ClickAtCoordinatesAsync(int x, int y, CancellationToken ct)
         {
-            if (!_permissionBroker.RequestPermission(PermissionType.MouseControl))
+            if (!_permissionBroker.RequestCapability(CapabilityType.MouseControl, $"desktop:click:{x},{y}", TimeSpan.FromMinutes(5)))
             {
-                _logger.LogWarning("Mouse click denied by PermissionBroker.");
+                _logger.LogWarning("Mouse click denied by AdvancedPermissionBroker.");
                 return Task.FromResult(false);
             }
 
@@ -31,9 +31,9 @@ namespace MahmoudAI.Core.Automation
 
         public Task<bool> SendTextAsync(string text, CancellationToken ct)
         {
-            if (!_permissionBroker.RequestPermission(PermissionType.KeyboardControl))
+            if (!_permissionBroker.RequestCapability(CapabilityType.KeyboardControl, "desktop:keyboard", TimeSpan.FromMinutes(5)))
             {
-                _logger.LogWarning("Keyboard input denied by PermissionBroker.");
+                _logger.LogWarning("Keyboard input denied by AdvancedPermissionBroker.");
                 return Task.FromResult(false);
             }
 

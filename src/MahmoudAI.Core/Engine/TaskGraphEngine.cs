@@ -85,10 +85,21 @@ namespace MahmoudAI.Core.Engine
                         continue;
                     }
 
-                    if (depsSatisfied && !running.Contains(task.Id))
+                    if (depsSatisfied)
                     {
-                        running.Add(task.Id);
-                        progressMade = true;
+                        bool shouldRun = false;
+                        lock (running)
+                        {
+                            if (!running.Contains(task.Id))
+                            {
+                                running.Add(task.Id);
+                                shouldRun = true;
+                            }
+                        }
+
+                        if (shouldRun)
+                        {
+                            progressMade = true;
 
                         _ = Task.Run(async () =>
                         {
