@@ -13,7 +13,8 @@ namespace MahmoudAI.App
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
         {
-            m_window = new MainWindow();
+            AppHost.Initialize();
+            m_window = AppHost.GetRequiredService<MainWindow>();
             m_window.Activate();
         }
     }

@@ -16,14 +16,23 @@ namespace MahmoudAI.App
         private readonly AiProviderClient _aiClient;
         private CancellationTokenSource? _cts;
 
-        public MainWindow()
+        private readonly ILogger<MainWindow> _logger;
+
+        public MainWindow(
+            PersonaStateMachine persona,
+            AdvancedPermissionBroker permissions,
+            TaskGraphEngine taskGraph,
+            AiProviderClient aiClient,
+            ILogger<MainWindow> logger)
         {
             this.InitializeComponent();
-            var loggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder => builder.AddConsole());
-            _persona = new PersonaStateMachine(loggerFactory.CreateLogger<PersonaStateMachine>());
-            _permissions = new AdvancedPermissionBroker(loggerFactory.CreateLogger<AdvancedPermissionBroker>());
-            _taskGraph = new TaskGraphEngine(loggerFactory.CreateLogger<TaskGraphEngine>());
-            _aiClient = new AiProviderClient(loggerFactory.CreateLogger<AiProviderClient>());
+            _persona = persona;
+            _permissions = permissions;
+            _taskGraph = taskGraph;
+            _aiClient = aiClient;
+            _logger = logger;
+
+            _logger.LogInformation("MainWindow initialized via Dependency Injection Composition Root.");
 
             // Wire interactive WinUI approval dialog delegate with true UI thread marshaling and CancellationToken support
             _permissions.ApprovalDelegate = async (capability, scope, ct) =>
