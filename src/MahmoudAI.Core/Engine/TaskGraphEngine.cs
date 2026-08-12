@@ -37,7 +37,7 @@ namespace MahmoudAI.Core.Engine
             _logger = logger;
         }
 
-        public async Task<bool> ExecuteGraphAsync(IEnumerable<MissionTask> tasks, CancellationToken cancellationToken)
+        public async Task<bool> ExecuteGraphAsync(IEnumerable<MissionTask> tasks, CancellationToken cancellationToken, int maxConcurrency = 4)
         {
             var taskDict = new Dictionary<string, MissionTask>();
             foreach (var t in tasks)
@@ -45,6 +45,49 @@ namespace MahmoudAI.Core.Engine
                 taskDict[t.Id] = t;
             }
 
+            // Validate graph cycles and missing dependencies upfront
+            foreach (var kvp in taskDict)
+            {
+                foreach (var dep in kvp.Value.Dependencies)
+                {
+                    if (!taskDict.ContainsKey(dep))
+                    {
+                        _logger.LogError("Task {TaskId} depends on non-existent task {DepId}", kvp.Key, dep);
+                        return false;
+                    }
+                }
+            }
+
+            // Cycle detection via DFS color marking (0=white, 1=gray, 2=black)
+            var visited = new Dictionary<string, int>();
+            bool HasCycle(string taskId)
+            {
+                if (!visited.TryGetValue(taskId, out int state)) state = 0;
+                if (state == 1) return true; // cycle detected
+                if (state == 2) return false; // already checked
+
+                visited[taskId] = 1;
+                if (taskDict.TryGetValue(taskId, out var task))
+                {
+                    foreach (var dep in task.Dependencies)
+                    {
+                        if (HasCycle(dep)) return true;
+                    }
+                }
+                visited[taskId] = 2;
+                return false;
+            }
+
+            foreach (var id in taskDict.Keys)
+            {
+                if (HasCycle(id))
+                {
+                    _logger.LogError("Cycle detected in task graph at task {TaskId}", id);
+                    return false;
+                }
+            }
+
+            using var semaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
             var completed = new HashSet<string>();
             var running = new HashSet<string>();
             var failed = new HashSet<string>();
@@ -103,6 +146,9 @@ namespace MahmoudAI.Core.Engine
 
                         _ = Task.Run(async () =>
                         {
+                            await semaphore.WaitAsync(cancellationToken);
+                            try
+                            {
                             int attempt = 0;
                             bool success = false;
 
@@ -157,6 +203,11 @@ namespace MahmoudAI.Core.Engine
                             }
 
                             lock (running) { running.Remove(task.Id); }
+                            }
+                            finally
+                            {
+                                semaphore.Release();
+                            }
                         }, cancellationToken);
                     }
                 }
