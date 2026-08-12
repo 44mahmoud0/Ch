@@ -56,7 +56,7 @@ namespace MahmoudAI.Storage
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to upsert vector to Qdrant. Stored locally.");
+                _logger.LogWarning(ex, "Failed to upsert vector to Qdrant. Fallback vector store queue active.");
                 return false;
             }
         }
