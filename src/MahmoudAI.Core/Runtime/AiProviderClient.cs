@@ -37,13 +37,17 @@ namespace MahmoudAI.Core.Runtime
                     }
                 }
                 
-                _logger.LogWarning("Fallback simulation response used for endpoint {Endpoint}", endpointUrl);
-                return $"[Mahmoud AI Real Runtime] Processed prompt on model {modelName}: {prompt}";
+                throw new HttpRequestException($"Unsupported or unconfigured AI provider endpoint: {endpointUrl}");
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogError("AI provider request timed out for endpoint {Endpoint}", endpointUrl);
+                throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error calling AI provider endpoint {Endpoint}", endpointUrl);
-                return $"Error communicating with AI provider: {ex.Message}";
+                _logger.LogError(ex, "Error communicating with AI provider endpoint {Endpoint}", endpointUrl);
+                throw;
             }
         }
     }

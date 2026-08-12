@@ -70,5 +70,15 @@ namespace MahmoudAI.Core.Tests
             bool success = await engine.ExecuteGraphAsync(tasks, CancellationToken.None);
             success.Should().BeFalse();
         }
+
+        [Fact]
+        public async Task AiProviderClient_ShouldThrowOnUnsupportedEndpoint()
+        {
+            var logger = NullLogger<AiProviderClient>.Instance;
+            var client = new AiProviderClient(logger);
+
+            Func<Task> act = async () => await client.GenerateCompletionAsync("llama3", "hello", "http://unsupported-endpoint:9999", null, CancellationToken.None);
+            await act.Should().ThrowAsync<HttpRequestException>();
+        }
     }
 }
