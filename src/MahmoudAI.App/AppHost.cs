@@ -12,7 +12,7 @@ namespace MahmoudAI.App
     {
         private static IHost? _host;
 
-        public static void Initialize()
+        public static void Initialize(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
         {
             _host = Host.CreateDefaultBuilder()
                 .ConfigureLogging(logging =>
@@ -23,14 +23,13 @@ namespace MahmoudAI.App
                 })
                 .ConfigureServices((context, services) =>
                 {
-                    services.AddSingleton<IUserApprovalService>(sp => 
-                        new WinUIUserApprovalService(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread(), () => null));
-                    services.AddSingleton<AdvancedPermissionBroker>(sp => 
-                        new AdvancedPermissionBroker(sp.GetRequiredService<ILogger<AdvancedPermissionBroker>>(), sp.GetRequiredService<IUserApprovalService>()));
+                    services.AddSingleton<IWinUiContext>(new WinUiContext(dispatcherQueue));
+                    services.AddSingleton<IUserApprovalService, WinUIUserApprovalService>();
+                    services.AddSingleton<AdvancedPermissionBroker>();
                     services.AddSingleton<TaskGraphEngine>();
                     services.AddSingleton<PersonaStateMachine>();
                     services.AddSingleton<AiProviderClient>();
-                    services.AddTransient<MainWindow>();
+                    services.AddSingleton<MainWindow>();
                 })
                 .Build();
         }

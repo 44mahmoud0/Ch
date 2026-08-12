@@ -1,47 +1,44 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using MahmoudAI.Core.Security;
 
 namespace MahmoudAI.App
 {
-    public class WinUIUserApprovalService : IUserApprovalService
+    public sealed class WinUIUserApprovalService : IUserApprovalService
     {
-        private readonly DispatcherQueue _dispatcherQueue;
-        private readonly Func<XamlRoot?> _xamlRootProvider;
+        private readonly IWinUiContext _ui;
 
-        public WinUIUserApprovalService(DispatcherQueue dispatcherQueue, Func<XamlRoot?> xamlRootProvider)
+        public WinUIUserApprovalService(IWinUiContext ui)
         {
-            _dispatcherQueue = dispatcherQueue;
-            _xamlRootProvider = xamlRootProvider;
+            _ui = ui;
         }
 
         public async Task<bool> RequestApprovalAsync(CapabilityType capability, string scope, CancellationToken ct)
         {
-            if (_dispatcherQueue.HasThreadAccess)
+            if (_ui.Dispatcher.HasThreadAccess)
             {
-                return await ShowPermissionDialogAsync(capability, scope, ct);
+                return await ShowAsync(capability, scope, ct);
             }
 
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            bool queued = _dispatcherQueue.TryEnqueue(async () =>
+            bool queued = _ui.Dispatcher.TryEnqueue(async () =>
             {
                 try
                 {
-                    bool result = await ShowPermissionDialogAsync(capability, scope, ct);
+                    bool result = await ShowAsync(capability, scope, ct);
                     tcs.TrySetResult(result);
                 }
                 catch (OperationCanceledException)
                 {
                     tcs.TrySetCanceled(ct);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    tcs.TrySetResult(false);
+                    tcs.TrySetException(ex);
                 }
             });
 
@@ -50,11 +47,11 @@ namespace MahmoudAI.App
             return await tcs.Task.WaitAsync(ct);
         }
 
-        private async Task<bool> ShowPermissionDialogAsync(CapabilityType capability, string scope, CancellationToken ct)
+        private async Task<bool> ShowAsync(CapabilityType capability, string scope, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
 
-            var xamlRoot = _xamlRootProvider();
+            var xamlRoot = _ui.GetRequiredXamlRoot();
             var dialog = new ContentDialog
             {
                 Title = "Security Permission Request",
@@ -66,7 +63,7 @@ namespace MahmoudAI.App
 
             using CancellationTokenRegistration registration = ct.Register(() =>
             {
-                _dispatcherQueue.TryEnqueue(() =>
+                _ui.Dispatcher.TryEnqueue(() =>
                 {
                     try
                     {

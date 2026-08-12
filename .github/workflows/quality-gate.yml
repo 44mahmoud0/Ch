@@ -1,0 +1,31 @@
+name: Mahmoud AI Quality Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  windows-quality-gate:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.400
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Verify everything via Quality Gate Script
+        shell: pwsh
+        run: ./eng/verify.ps1
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-artifacts
+          path: artifacts

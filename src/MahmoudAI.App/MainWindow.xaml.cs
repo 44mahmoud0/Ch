@@ -18,14 +18,14 @@ namespace MahmoudAI.App
 
         private readonly ILogger<MainWindow> _logger;
 
-        private readonly IUserApprovalService _userApprovalService;
+        private readonly IWinUiContext _uiContext;
 
         public MainWindow(
             PersonaStateMachine persona,
             AdvancedPermissionBroker permissions,
             TaskGraphEngine taskGraph,
             AiProviderClient aiClient,
-            IUserApprovalService userApprovalService,
+            IWinUiContext uiContext,
             ILogger<MainWindow> logger)
         {
             this.InitializeComponent();
@@ -33,16 +33,18 @@ namespace MahmoudAI.App
             _permissions = permissions;
             _taskGraph = taskGraph;
             _aiClient = aiClient;
-            _userApprovalService = userApprovalService;
+            _uiContext = uiContext;
             _logger = logger;
 
             _logger.LogInformation("MainWindow initialized via Dependency Injection Composition Root.");
 
-            // Configure WinUIUserApprovalService with live XamlRoot provider bound to this Window instance
-            if (_userApprovalService is WinUIUserApprovalService winUiApproval)
+            Activated += (_, _) =>
             {
-                // Re-register or configure with correct XamlRoot provider if needed
-            }
+                if (Content is FrameworkElement element && element.XamlRoot is not null)
+                {
+                    _uiContext.SetXamlRoot(element.XamlRoot);
+                }
+            };
 
             Title = "Mahmoud AI - Native Windows 11 Desktop Agent";
             MissionOutputBox.Text = "[System] Mahmoud AI Desktop initialized successfully.\n[Security] AdvancedPermissionBroker and WorkspaceIsolation active.\n";
