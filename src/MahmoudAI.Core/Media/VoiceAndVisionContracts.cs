@@ -27,14 +27,14 @@ namespace MahmoudAI.Core.Media
 
         public Task<string> SpeechToTextAsync(byte[] audioData, CancellationToken ct)
         {
-            _logger.LogInformation("Processing speech-to-text for audio buffer size {Size}", audioData.Length);
-            return Task.FromResult("Sample transcribed voice command");
+            _logger.LogWarning("Speech-to-text requested without Whisper.net model or audio stream integration.");
+            throw new InvalidOperationException("Whisper.net multilingual speech recognition engine not configured or initialized.");
         }
 
         public Task<byte[]> TextToSpeechAsync(string text, string language, CancellationToken ct)
         {
-            _logger.LogInformation("Synthesizing speech for text: {Text} in language {Lang}", text, language);
-            return Task.FromResult(Array.Empty<byte>());
+            _logger.LogWarning("Text-to-speech requested without active TTS engine.");
+            throw new InvalidOperationException("Text-to-speech audio synthesis engine not configured.");
         }
     }
 }

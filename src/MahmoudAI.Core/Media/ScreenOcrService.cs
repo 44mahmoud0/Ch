@@ -16,9 +16,8 @@ namespace MahmoudAI.Core.Media
 
         public Task<string> CaptureAndExtractTextAsync(CancellationToken ct)
         {
-            _logger.LogInformation("Capturing primary display buffer and running OCR text extraction.");
-            // In a production Windows app, this wraps Windows.Graphics.Capture and Windows.Media.Ocr.
-            return Task.FromResult("[OCR Simulated Result] Detected active window: Mahmoud AI Desktop - Ready.");
+            _logger.LogWarning("Screen OCR requested outside a native Windows 11 desktop runtime context.");
+            throw new PlatformNotSupportedException("Screen capture and OCR require native Windows.Graphics.Capture and Windows.Media.Ocr APIs available on Windows 11.");
         }
     }
 }

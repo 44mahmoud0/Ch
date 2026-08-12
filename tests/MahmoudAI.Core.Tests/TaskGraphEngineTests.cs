@@ -80,5 +80,21 @@ namespace MahmoudAI.Core.Tests
             Func<Task> act = async () => await client.GenerateCompletionAsync("llama3", "hello", "http://unsupported-endpoint:9999", null, CancellationToken.None);
             await act.Should().ThrowAsync<HttpRequestException>();
         }
+
+        [Fact]
+        public async Task ScreenOcrService_ShouldThrowWhenPlatformNotSupported()
+        {
+            var ocr = new ScreenOcrService(NullLogger<ScreenOcrService>.Instance);
+            Func<Task> act = async () => await ocr.CaptureAndExtractTextAsync(CancellationToken.None);
+            await act.Should().ThrowAsync<PlatformNotSupportedException>();
+        }
+
+        [Fact]
+        public async Task DefaultVoiceAdapter_ShouldThrowWhenUnconfigured()
+        {
+            var voice = new DefaultVoiceAdapter(NullLogger<DefaultVoiceAdapter>.Instance);
+            Func<Task> act = async () => await voice.SpeechToTextAsync(new byte[10], CancellationToken.None);
+            await act.Should().ThrowAsync<InvalidOperationException>();
+        }
     }
 }
