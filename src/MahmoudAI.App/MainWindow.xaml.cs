@@ -23,46 +23,36 @@ namespace MahmoudAI.App
             _taskGraph = new TaskGraphEngine(loggerFactory.CreateLogger<TaskGraphEngine>());
             _aiClient = new AiProviderClient(loggerFactory.CreateLogger<AiProviderClient>());
 
-            // Wire interactive WinUI approval dialog delegate with safe UI thread marshaling
-            _permissions.ApprovalDelegate = async (capability, scope) =>
+            // Wire interactive WinUI approval dialog delegate with true UI thread marshaling and CancellationToken support
+            _permissions.ApprovalDelegate = async (capability, scope, ct) =>
             {
-                bool approved = false;
-                var tcs = new TaskCompletionSource<bool>();
-
-                void ShowDialog()
+                if (DispatcherQueue.HasThreadAccess)
                 {
-                    _ = Task.Run(async () =>
+                    return await ShowPermissionDialogAsync(capability, scope, ct);
+                }
+
+                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                bool queued = DispatcherQueue.TryEnqueue(async () =>
+                {
+                    try
                     {
-                        try
-                        {
-                            var dialog = new ContentDialog
-                            {
-                                Title = "Security Permission Request",
-                                Content = $"Agent requests capability [{capability}] on scope [{scope}]. Allow execution?",
-                                PrimaryButtonText = "Allow",
-                                CloseButtonText = "Deny",
-                                XamlRoot = this.Content.XamlRoot
-                            };
-                            var result = await dialog.ShowAsync();
-                            tcs.SetResult(result == ContentDialogResult.Primary);
-                        }
-                        catch (Exception)
-                        {
-                            tcs.SetResult(false);
-                        }
-                    });
-                }
+                        bool result = await ShowPermissionDialogAsync(capability, scope, ct);
+                        tcs.TrySetResult(result);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        tcs.TrySetCanceled(ct);
+                    }
+                    catch (Exception)
+                    {
+                        tcs.TrySetResult(false);
+                    }
+                });
 
-                if (this.DispatcherQueue.HasThreadAccess)
-                {
-                    ShowDialog();
-                }
-                else
-                {
-                    this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () => ShowDialog());
-                }
+                if (!queued) return false;
 
-                return await tcs.Task;
+                return await tcs.Task.WaitAsync(ct);
             };
 
             Title = "Mahmoud AI - Native Windows 11 Desktop Agent";
@@ -71,43 +61,61 @@ namespace MahmoudAI.App
 
         private async void RunMissionButton_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
         {
-            string goal = MissionInputBox.Text;
+            string goal = MissionInputBox.Text.Trim();
             if (string.IsNullOrWhiteSpace(goal)) return;
 
+            if (_cts != null && !_cts.IsCancellationRequested)
+            {
+                MissionOutputBox.Text += "\n[System] A mission is already running.\n";
+                return;
+            }
+
             _cts = new CancellationTokenSource();
+            RunMissionButton.IsEnabled = false;
+
             MissionOutputBox.Text += $"\n[Mission Start] Goal: {goal}\n";
             StatusTextBlock.Text = "Status: Mission Running (TaskGraph)...";
             StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Blue);
 
             try
             {
-                // Create structured task graph mission DAG
-                var graph = new MahmoudAI.Core.Engine.TaskGraph();
-                var planningTask = new MahmoudAI.Core.Engine.TaskNode("task-plan", "Deconstruct Mission", async (ct) =>
+                var tasks = new List<MissionTask>
                 {
-                    await Task.Delay(200, ct);
-                    MissionOutputBox.Text += "[Planner Agent] Deconstructed goal into subtasks.\n";
-                });
-                var executionTask = new MahmoudAI.Core.Engine.TaskNode("task-exec", "Execute Mission Steps", async (ct) =>
-                {
-                    await Task.Delay(300, ct);
-                    // Example guarded capability request through permission broker
-                    bool allowed = await _permissions.RequestCapabilityAsync(CapabilityType.FileWrite, "mission-workspace", TimeSpan.FromMinutes(5), ct);
-                    if (allowed)
+                    new MissionTask
                     {
-                        MissionOutputBox.Text += "[Coding/Tool Agent] Capability granted. Executing mission steps securely.\n";
-                    }
-                    else
+                        Id = "task-plan",
+                        Name = "Deconstruct Mission",
+                        Action = async ct =>
+                        {
+                            await Task.Delay(200, ct);
+                            MissionOutputBox.Text += "[Planner Agent] Deconstructed goal into subtasks.\n";
+                            return true;
+                        }
+                    },
+                    new MissionTask
                     {
-                        MissionOutputBox.Text += "[Safety Agent] Capability denied by user or security policy.\n";
+                        Id = "task-exec",
+                        Name = "Execute Mission Steps",
+                        Dependencies = { "task-plan" },
+                        Action = async ct =>
+                        {
+                            await Task.Delay(300, ct);
+                            bool allowed = await _permissions.RequestCapabilityAsync(CapabilityType.FileWrite, "mission-workspace", TimeSpan.FromMinutes(5), ct);
+                            if (allowed)
+                            {
+                                MissionOutputBox.Text += "[Coding/Tool Agent] Capability granted. Executing mission steps securely.\n";
+                                return true;
+                            }
+                            else
+                            {
+                                MissionOutputBox.Text += "[Safety Agent] Capability denied by user or security policy.\n";
+                                return false;
+                            }
+                        }
                     }
-                });
+                };
 
-                executionTask.AddDependency("task-plan");
-                graph.AddNode(planningTask);
-                graph.AddNode(executionTask);
-
-                bool success = await _taskGraph.ExecuteGraphAsync(graph, _cts.Token);
+                bool success = await _taskGraph.ExecuteGraphAsync(tasks, _cts.Token);
 
                 if (success)
                 {
@@ -124,8 +132,8 @@ namespace MahmoudAI.App
             }
             catch (OperationCanceledException)
             {
-                MissionOutputBox.Text += "\n[Mission Cancelled] Emergency Stop aborted active mission.\n";
-                StatusTextBlock.Text = "Status: Cancelled by Emergency Stop";
+                MissionOutputBox.Text += "\n[Mission Cancelled] Emergency Stop or user cancellation aborted active mission.\n";
+                StatusTextBlock.Text = "Status: Cancelled / Emergency Stop";
                 StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkRed);
             }
             catch (Exception ex)
@@ -134,15 +142,60 @@ namespace MahmoudAI.App
                 StatusTextBlock.Text = "Status: Error";
                 StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
             }
+            finally
+            {
+                RunMissionButton.IsEnabled = true;
+            }
         }
 
         private void EmergencyStopButton_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
         {
             _permissions.TriggerEmergencyStop();
-            _cts.Cancel();
-            StatusTextBlock.Text = "Status: EMERGENCY STOP";
+            try
+            {
+                _cts?.Cancel();
+            }
+            catch
+            {
+                // Ignore if already disposed
+            }
+            StatusTextBlock.Text = "Status: EMERGENCY STOP / SAFE MODE";
             StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkRed);
-            MissionOutputBox.Text += "\n[CRITICAL] Emergency Stop triggered! All leases revoked and active tasks cancelled.\n";
+            MissionOutputBox.Text += "\n[CRITICAL] Emergency Stop triggered! All leases revoked, safe mode active, active tasks cancelled.\n";
+        }
+
+        private async Task<bool> ShowPermissionDialogAsync(CapabilityType capability, string scope, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var dialog = new ContentDialog
+            {
+                Title = "Security Permission Request",
+                Content = $"Mahmoud AI requests {capability}\nScope: {scope}",
+                PrimaryButtonText = "Allow",
+                CloseButtonText = "Deny",
+                XamlRoot = Content.XamlRoot
+            };
+
+            using CancellationTokenRegistration registration = ct.Register(() =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    try
+                    {
+                        dialog.Hide();
+                    }
+                    catch
+                    {
+                        // Dialog may already be closed
+                    }
+                });
+            });
+
+            ContentDialogResult result = await dialog.ShowAsync();
+            ct.ThrowIfCancellationRequested();
+
+            return result == ContentDialogResult.Primary;
         }
     }
 }

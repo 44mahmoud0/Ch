@@ -13,7 +13,7 @@ namespace MahmoudAI.Core.Tests
         public void PermissionBroker_ShouldGrantAndEnforceLeases()
         {
             var broker = new AdvancedPermissionBroker(NullLogger<AdvancedPermissionBroker>.Instance);
-            broker.ApprovalDelegate = (cap, scope) => Task.FromResult(true);
+            broker.ApprovalDelegate = (cap, scope, ct) => Task.FromResult(true);
             
             bool granted = broker.RequestCapability(CapabilityType.FilesRead, "workspace/*", TimeSpan.FromMinutes(5));
             granted.Should().BeTrue();

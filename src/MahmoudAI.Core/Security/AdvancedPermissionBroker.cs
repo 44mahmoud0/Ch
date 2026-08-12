@@ -34,7 +34,7 @@ namespace MahmoudAI.Core.Security
         public bool EmergencyStopTriggered { get; private set; } = false;
         public bool SafeModeActive { get; private set; } = false;
 
-        public Func<CapabilityType, string, Task<bool>>? ApprovalDelegate { get; set; }
+        public Func<CapabilityType, string, CancellationToken, Task<bool>>? ApprovalDelegate { get; set; }
 
         public AdvancedPermissionBroker(ILogger<AdvancedPermissionBroker> logger)
         {
@@ -55,67 +55,89 @@ namespace MahmoudAI.Core.Security
             _logger.LogWarning("Safe mode set to {Active}", active);
         }
 
+        public void ResetEmergencyStop()
+        {
+            EmergencyStopTriggered = false;
+            SafeModeActive = false;
+            _activeLeases.Clear();
+            _logger.LogWarning("Emergency stop reset by explicit user action.");
+        }
+
         public bool RequestCapability(CapabilityType capability, string scope, TimeSpan duration)
         {
+            return RequestCapabilityAsync(capability, scope, duration, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        public async Task<bool> RequestCapabilityAsync(CapabilityType capability, string scope, TimeSpan duration, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
             if (EmergencyStopTriggered || SafeModeActive)
             {
-                _logger.LogWarning("Capability request {Capability} denied due to EmergencyStop or SafeMode.", capability);
+                _logger.LogWarning("Capability {Capability} denied because SafeMode/EmergencyStop is active.", capability);
                 return false;
             }
 
-            // Clean expired leases
-            foreach (var kvp in _activeLeases)
+            DateTime now = DateTime.UtcNow;
+
+            foreach (var pair in _activeLeases)
             {
-                if (kvp.Value.ExpiresAt < DateTime.UtcNow)
+                if (pair.Value.ExpiresAt <= now)
                 {
-                    _activeLeases.TryRemove(kvp.Key, out _);
+                    _activeLeases.TryRemove(pair.Key, out _);
                 }
             }
 
-            // Check if active lease covers this scope
             foreach (var lease in _activeLeases.Values)
             {
-                if (lease.Capability == capability && (lease.Scope == "*" || lease.Scope.Equals(scope, StringComparison.OrdinalIgnoreCase)))
+                if (lease.Capability == capability && lease.ExpiresAt > now && ScopeMatches(lease.Scope, scope))
                 {
-                    if (lease.ExpiresAt > DateTime.UtcNow)
-                    {
-                        _logger.LogInformation("Capability lease matched for {Capability} on scope {Scope}", capability, scope);
-                        return true;
-                    }
+                    return true;
                 }
             }
 
-            // If approval delegate is registered, prompt interactively
-            bool approved = false;
-            if (ApprovalDelegate != null)
+            if (ApprovalDelegate is null)
             {
-                try
-                {
-                    approved = ApprovalDelegate(capability, scope).GetAwaiter().GetResult();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error during interactive capability approval for {Capability}", capability);
-                    approved = false;
-                }
-            }
-            else
-            {
-                _logger.LogWarning("No approval delegate registered. Denying capability request {Capability} on scope {Scope}", capability, scope);
+                _logger.LogWarning("No approval provider configured.");
                 return false;
             }
 
-            if (!approved)
+            bool approved;
+            try
             {
-                _logger.LogWarning("User or policy denied capability request {Capability} on scope {Scope}", capability, scope);
+                approved = await ApprovalDelegate(capability, scope, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Approval failed for {Capability}.", capability);
                 return false;
             }
 
-            var leaseId = Guid.NewGuid().ToString("N");
-            var newLease = new CapabilityLease(leaseId, capability, scope, DateTime.UtcNow, DateTime.UtcNow.Add(duration), "UserApproved");
-            _activeLeases[leaseId] = newLease;
-            _logger.LogInformation("Granted capability lease {LeaseId} for {Capability} on scope {Scope} for {Duration}", leaseId, capability, scope, duration);
+            if (!approved) return false;
+
+            ct.ThrowIfCancellationRequested();
+
+            var newLease = new CapabilityLease(
+                Guid.NewGuid().ToString("N"),
+                capability,
+                scope,
+                now,
+                now.Add(duration),
+                "UserApproved"
+            );
+
+            _activeLeases[newLease.LeaseId] = newLease;
+            _logger.LogInformation("Granted capability lease {LeaseId} for {Capability} on scope {Scope}", newLease.LeaseId, capability, scope);
             return true;
+        }
+
+        private static bool ScopeMatches(string grantedScope, string requestedScope)
+        {
+            return grantedScope == "*" || grantedScope.Equals(requestedScope, StringComparison.OrdinalIgnoreCase);
         }
 
         public void RevokeAll()
