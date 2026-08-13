@@ -89,3 +89,4 @@
 - [x] Fix 5250507 Quality Gate failure by aligning WindowsIntegration tests with production APIs
 - [x] Add InternalsVisibleTo only for WindowsIntegration test assembly and unify solution configuration mappings
 - [x] Add durable GateSummary.json with stage status and failed-stage diagnostics
+- [x] Make SQLite test cleanup deterministic with SqliteConnection.ClearAllPools() to prevent Windows file locks under parallel xUnit execution

@@ -62,7 +62,11 @@ namespace MahmoudAI.Core.Tests
             }
             finally
             {
-                if (File.Exists(dbPath)) File.Delete(dbPath);
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                if (File.Exists(dbPath))
+                {
+                    try { File.Delete(dbPath); } catch { }
+                }
             }
         }
     }
