@@ -63,3 +63,4 @@
 - [x] Acceleration: add regression and security tests for the new integration boundaries (42/42 passing)
 - [ ] Acceleration: update the Windows quality gate and documentation after integration validation (local non-WinUI verification passes; Windows CI pending)
 - [ ] Acceleration: commit the open-source integration milestone to GitHub
+- [x] Repair malformed MahmoudAI.Storage project GUID entries in MahmoudAI.sln so the App solution build includes Storage
