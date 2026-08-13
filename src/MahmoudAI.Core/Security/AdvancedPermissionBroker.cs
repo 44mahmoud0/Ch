@@ -17,7 +17,9 @@ namespace MahmoudAI.Core.Security
         KeyboardControl,
         MicrophoneAccess,
         NetworkAccess,
-        PluginExecution
+        PluginExecution,
+        UiAutomationRead,
+        UiAutomationInteract
     }
 
     public record CapabilityLease(

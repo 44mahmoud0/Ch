@@ -96,7 +96,7 @@ namespace MahmoudAI.Core.Integration
             var automationRequest = CreateAutomationRequest(
                 request.WindowTarget,
                 AutomationOperation.Inspect,
-                CapabilityType.ScreenCapture,
+                CapabilityType.UiAutomationRead,
                 request.TargetProcessId);
             if (!_riskPolicy.IsAllowed(automationRequest, out var riskReason))
             {
@@ -110,7 +110,7 @@ namespace MahmoudAI.Core.Integration
                 cancellationToken).ConfigureAwait(false);
             if (lease is null)
             {
-                return new UiaQueryResult(UiaMatchStatus.Denied, Array.Empty<UiaElementSnapshot>(), "Screen capture capability denied by policy or user.");
+                return new UiaQueryResult(UiaMatchStatus.Denied, Array.Empty<UiaElementSnapshot>(), "UI automation read capability denied by policy or user.");
             }
 
             using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
@@ -124,9 +124,7 @@ namespace MahmoudAI.Core.Integration
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(request);
-            var capability = request.Action == UiaActionType.SetValue
-                ? CapabilityType.KeyboardControl
-                : CapabilityType.MouseControl;
+            var capability = CapabilityType.UiAutomationInteract;
             var operation = request.Action == UiaActionType.SetValue
                 ? AutomationOperation.SetValue
                 : AutomationOperation.Activate;

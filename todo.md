@@ -93,3 +93,7 @@
 - [x] Add typed, bounded UIA semantic query and pattern execution APIs behind the guarded integration boundary
 - [x] Add deterministic WindowsIntegration TestHost controls and behavioral UIA tests
 - [x] Update Windows automation documentation for semantic selectors, ambiguity, timeout, and pattern policy
+- [x] Add explicit `UiAutomationRead` and `UiAutomationInteract` capability types for precise auditability
+- [x] Introduce truthful `ProviderError` match status instead of catching and mapping all exceptions to `NotFound`
+- [x] Validate UIA query limits and document synchronous provider hang/timeout boundaries
+- [x] Update UIA semantic automation documentation with TestHost E2E validation plans and Screen Understanding entry criteria

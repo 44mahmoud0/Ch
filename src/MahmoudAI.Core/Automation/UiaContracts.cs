@@ -42,7 +42,8 @@ namespace MahmoudAI.Core.Automation
         Timeout,
         Cancelled,
         Denied,
-        UnsupportedPattern
+        UnsupportedPattern,
+        ProviderError
     }
 
     public sealed record UiaSelector(
