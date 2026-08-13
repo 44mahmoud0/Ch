@@ -85,3 +85,7 @@
 - [ ] Wave 2: Run the complete Windows interactive smoke test for UIA3, HWND revalidation, and CsWin32 input on a disposable desktop session
 
 - [x] Push Wave 2 hardening and WindowsIntegration assembly to GitHub repository 44mahmoud0/Ch main branch
+
+- [x] Fix 5250507 Quality Gate failure by aligning WindowsIntegration tests with production APIs
+- [x] Add InternalsVisibleTo only for WindowsIntegration test assembly and unify solution configuration mappings
+- [x] Add durable GateSummary.json with stage status and failed-stage diagnostics

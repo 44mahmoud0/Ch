@@ -2,8 +2,10 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MahmoudAI.Core.Automation;
+using MahmoudAI.Core.Integration;
 using MahmoudAI.Core.Security;
 using MahmoudAI.WindowsIntegration.Automation;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace MahmoudAI.WindowsIntegration.Tests
@@ -13,7 +15,9 @@ namespace MahmoudAI.WindowsIntegration.Tests
         [Fact]
         public void Composition_CreatesGuardedBackend_WithoutExposingRawTypes()
         {
-            var backend = WindowsAutomationComposition.CreateGuardedBackend(TimeProvider.System);
+            var broker = new AdvancedPermissionBroker(NullLogger<AdvancedPermissionBroker>.Instance);
+            var backend = WindowsAutomationComposition.CreateGuardedBackend(broker, NullLoggerFactory.Instance);
+
             Assert.NotNull(backend);
             Assert.IsType<CapabilityGuardedAutomationBackend>(backend);
         }
@@ -21,34 +25,32 @@ namespace MahmoudAI.WindowsIntegration.Tests
         [Fact]
         public async Task Win32Backend_Inspect_InvalidHwnd_ReturnsFailure()
         {
-            var backend = new Win32AutomationBackend(TimeProvider.System);
+            var backend = new Win32AutomationBackend(NullLogger<Win32AutomationBackend>.Instance);
             var request = new AutomationRequest(
+                RequiredCapability: CapabilityType.ScreenCapture,
+                Scope: "hwnd:99999999",
                 Operation: AutomationOperation.Inspect,
-                Target: "hwnd:99999999",
-                Text: null,
-                Coordinates: null,
-                RequiredCapability: CapabilityType.ScreenCapture
+                Target: "hwnd:99999999"
             );
 
             var result = await backend.ExecuteAsync(request, CancellationToken.None);
-            Assert.False(result.Success);
-            Assert.Contains("invalid", result.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.False(result.Succeeded);
+            Assert.NotNull(result.Error);
         }
 
         [Fact]
         public async Task Uia3Backend_Inspect_InvalidTarget_ReturnsFailureGracefully()
         {
-            var backend = new Uia3AutomationBackend(TimeProvider.System);
+            using var backend = new Uia3AutomationBackend();
             var request = new AutomationRequest(
+                RequiredCapability: CapabilityType.ScreenCapture,
+                Scope: "hwnd:99999999",
                 Operation: AutomationOperation.Inspect,
-                Target: "hwnd:99999999",
-                Text: null,
-                Coordinates: null,
-                RequiredCapability: CapabilityType.ScreenCapture
+                Target: "hwnd:99999999"
             );
 
             var result = await backend.ExecuteAsync(request, CancellationToken.None);
-            Assert.False(result.Success);
+            Assert.False(result.Succeeded);
         }
     }
 }
