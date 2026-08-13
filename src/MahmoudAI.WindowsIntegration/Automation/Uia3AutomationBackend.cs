@@ -179,7 +179,16 @@ namespace MahmoudAI.WindowsIntegration.Automation
                 return (Failure(UiaMatchStatus.NotFound, "UIA query requires a valid hwnd:<handle> window target."), null);
             }
 
-            var root = _automation.FromHandle(handle);
+            AutomationElement? root;
+            try
+            {
+                root = _automation.FromHandle(handle);
+            }
+            catch
+            {
+                return (Failure(UiaMatchStatus.NotFound, "The target window does not exist or could not be bound."), null);
+            }
+
             if (root is null)
             {
                 return (Failure(UiaMatchStatus.NotFound, "The target window does not exist."), null);
@@ -443,8 +452,15 @@ namespace MahmoudAI.WindowsIntegration.Automation
                 return null;
             }
 
-            var element = _automation.FromHandle(handle);
-            return element is not null && MatchesProcess(element, context) ? element : null;
+            try
+            {
+                var element = _automation.FromHandle(handle);
+                return element is not null && MatchesProcess(element, context) ? element : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static bool TryParseHwnd(string target, out IntPtr handle)
