@@ -50,7 +50,7 @@ namespace MahmoudAI.Core.Tests
             Assert.Equal(FusionStatus.Matched, result.Status);
             Assert.NotNull(result.BestCandidate);
             Assert.Equal("btnSave", result.BestCandidate.ElementId);
-            
+
             // Verify separated provenance scores
             Assert.Equal(1.0, result.BestCandidate.ScoreBreakdown.UiaTextScore);
             Assert.Equal(0.0, result.BestCandidate.ScoreBreakdown.OcrTextScore);
