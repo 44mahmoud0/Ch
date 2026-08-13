@@ -53,7 +53,10 @@ namespace MahmoudAI.WindowsIntegration.Automation
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(request);
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromResult(new UiaQueryResult(UiaMatchStatus.Cancelled, Array.Empty<UiaElementSnapshot>(), "UIA query was cancelled."));
+            }
 
             try
             {
@@ -79,7 +82,10 @@ namespace MahmoudAI.WindowsIntegration.Automation
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(request);
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromResult(new UiaActionResult(false, UiaMatchStatus.Cancelled, "UIA action was cancelled."));
+            }
 
             try
             {
