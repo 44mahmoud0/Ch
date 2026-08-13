@@ -73,7 +73,7 @@ namespace MahmoudAI.WindowsIntegration.Automation
             }
             catch (Exception ex)
             {
-                return Task.FromResult(new UiaQueryResult(UiaMatchStatus.NotFound, Array.Empty<UiaElementSnapshot>(), ex.Message));
+                return Task.FromResult(new UiaQueryResult(UiaMatchStatus.ProviderError, Array.Empty<UiaElementSnapshot>(), ex.Message));
             }
         }
 
@@ -115,7 +115,7 @@ namespace MahmoudAI.WindowsIntegration.Automation
             }
             catch (Exception ex)
             {
-                return Task.FromResult(new UiaActionResult(false, UiaMatchStatus.NotFound, ex.Message));
+                return Task.FromResult(new UiaActionResult(false, UiaMatchStatus.ProviderError, ex.Message));
             }
         }
 

@@ -31,6 +31,8 @@ namespace MahmoudAI.Core.Integration
                 AutomationOperation.Pointer => CapabilityType.MouseControl,
                 AutomationOperation.Keyboard => CapabilityType.KeyboardControl,
                 AutomationOperation.Capture => CapabilityType.ScreenCapture,
+                AutomationOperation.Inspect => request.RequiredCapability == CapabilityType.UiAutomationRead ? CapabilityType.UiAutomationRead : request.RequiredCapability,
+                AutomationOperation.Activate or AutomationOperation.SetValue => request.RequiredCapability == CapabilityType.UiAutomationInteract ? CapabilityType.UiAutomationInteract : request.RequiredCapability,
                 _ => request.RequiredCapability
             };
             if (request.RequiredCapability != expectedCapability)
