@@ -48,6 +48,13 @@ namespace MahmoudAI.App
                             serviceProvider.GetRequiredService<AdvancedPermissionBroker>(),
                             serviceProvider.GetRequiredService<IAutomationRiskPolicy>()));
                     services.AddSingleton<WindowsAutomationEngine>();
+                    services.AddSingleton<IScreenPrivacyFilter, DefaultScreenPrivacyFilter>();
+                    services.AddSingleton<IOcrEngine, WindowsMediaOcrEngine>();
+                    services.AddSingleton<OcrPipeline>(sp => new OcrPipeline(
+                        sp.GetRequiredService<IOcrEngine>(),
+                        null,
+                        sp.GetRequiredService<ILogger<OcrPipeline>>()));
+                    services.AddSingleton<ScreenFusionEngine>();
                     services.AddSingleton<PersonaStateMachine>();
                     services.AddSingleton<AiProviderClient>();
 

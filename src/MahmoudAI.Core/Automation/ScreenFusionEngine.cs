@@ -59,27 +59,36 @@ namespace MahmoudAI.Core.Automation
                 var normalizedElement = NormalizeText(elementText);
                 var elementBounds = new ScreenRect(element.BoundingX, element.BoundingY, element.BoundingWidth, element.BoundingHeight);
 
-                double textSimilarity = 0.0;
+                double uiaTextSimilarity = 0.0;
                 if (!string.IsNullOrEmpty(normalizedTarget))
                 {
                     if (normalizedElement.Equals(normalizedTarget, StringComparison.OrdinalIgnoreCase))
                     {
-                        textSimilarity = 1.0;
+                        uiaTextSimilarity = 1.0;
                     }
                     else if (normalizedElement.Contains(normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
                              normalizedTarget.Contains(normalizedElement, StringComparison.OrdinalIgnoreCase))
                     {
-                        textSimilarity = 0.75;
+                        uiaTextSimilarity = 0.75;
                     }
                 }
 
-                OcrLine? matchedLine = null;
-                double bestIoU = 0.0;
+                // Pairwise evaluation: evaluate each (UIA element, OCR line) pair independently to prevent cross-line evidence mix-up
+                OcrLine? bestPairOcrLine = null;
+                double bestPairScore = -1.0;
+                double bestPairIoU = 0.0;
+                double bestPairTextSimilarity = uiaTextSimilarity;
+                string bestPairMatchedText = elementText;
 
                 foreach (var line in observation.OcrResult.Lines)
                 {
                     var normalizedLine = NormalizeText(line.Text);
-                    bool lineMatchesText = !string.IsNullOrEmpty(normalizedTarget) && (normalizedLine.Contains(normalizedTarget, StringComparison.OrdinalIgnoreCase) || normalizedTarget.Contains(normalizedLine, StringComparison.OrdinalIgnoreCase));
+                    double lineTextSimilarity = 0.0;
+                    if (!string.IsNullOrEmpty(normalizedTarget))
+                    {
+                        if (normalizedLine.Equals(normalizedTarget, StringComparison.OrdinalIgnoreCase)) lineTextSimilarity = 1.0;
+                        else if (normalizedLine.Contains(normalizedTarget, StringComparison.OrdinalIgnoreCase) || normalizedTarget.Contains(normalizedLine, StringComparison.OrdinalIgnoreCase)) lineTextSimilarity = 0.85;
+                    }
 
                     // Map line bounding polygon through canonical FrameCoordinateTransform
                     var mappedPolygon = observation.Transform.MapOutputPolygonToAbsoluteDesktop(line.Bounds);
@@ -88,38 +97,42 @@ namespace MahmoudAI.Core.Automation
                     var ocrRect = new ScreenRect((int)absTopLeft.X, (int)absTopLeft.Y, Math.Max(1, (int)(absBottomRight.X - absTopLeft.X)), Math.Max(1, (int)(absBottomRight.Y - absTopLeft.Y)));
 
                     double iou = ComputeIoU(elementBounds, ocrRect);
+                    double geometryScore = iou > 0.0 ? Math.Clamp(iou * 1.5, 0.1, 1.0) : (CanApproximateSpatialProximity(elementBounds, ocrRect) ? 0.3 : 0.0);
 
-                    if (lineMatchesText || iou > 0.0)
+                    double controlTypeScore = element.ControlType.Equals("Button", StringComparison.OrdinalIgnoreCase) ? 1.0 : 0.8;
+                    double semanticPriority = 1.0;
+
+                    double pairScore = (geometryScore * 0.3) + (Math.Max(lineTextSimilarity, uiaTextSimilarity) * 0.4) + (controlTypeScore * 0.2) + (semanticPriority * 0.1);
+
+                    if (pairScore > bestPairScore)
                     {
-                        if (iou >= bestIoU)
-                        {
-                            bestIoU = iou;
-                            matchedLine = line;
-                        }
-                        if (lineMatchesText)
-                        {
-                            textSimilarity = Math.Max(textSimilarity, 0.90);
-                        }
+                        bestPairScore = pairScore;
+                        bestPairOcrLine = line;
+                        bestPairIoU = iou;
+                        bestPairTextSimilarity = Math.Max(lineTextSimilarity, uiaTextSimilarity);
+                        bestPairMatchedText = line.Text;
                     }
                 }
 
-                double geometryScore = bestIoU > 0.0 ? Math.Clamp(bestIoU * 1.5, 0.1, 1.0) : 0.0;
-                double controlTypeScore = element.ControlType.Equals("Button", StringComparison.OrdinalIgnoreCase) ? 1.0 : 0.8;
-                double semanticPriority = 1.0; // UIA authoritative reference
-
-                double totalScore = (geometryScore * 0.3) + (textSimilarity * 0.4) + (controlTypeScore * 0.2) + (semanticPriority * 0.1);
-
-                // Strict rejection of false candidates: must have non-zero text similarity or geometric overlap matching target query
-                if (textSimilarity >= 0.7 || (geometryScore > 0.0 && textSimilarity >= 0.4))
+                // If no OCR lines exist, evaluate element standalone if UIA text similarity is strong
+                if (observation.OcrResult.Lines.Count == 0 && uiaTextSimilarity >= 0.7)
                 {
-                    var breakdown = new FusionScoreBreakdown(geometryScore, textSimilarity, controlTypeScore, semanticPriority, totalScore);
+                    bestPairScore = (0.5 * 0.3) + (uiaTextSimilarity * 0.4) + (1.0 * 0.2) + (1.0 * 0.1);
+                    bestPairTextSimilarity = uiaTextSimilarity;
+                }
+
+                if (bestPairScore >= 0.5 && (bestPairTextSimilarity >= 0.7 || bestPairIoU > 0.0))
+                {
+                    double finalGeometry = bestPairIoU > 0.0 ? Math.Clamp(bestPairIoU * 1.5, 0.1, 1.0) : 0.3;
+                    var breakdown = new FusionScoreBreakdown(finalGeometry, bestPairTextSimilarity, element.ControlType.Equals("Button", StringComparison.OrdinalIgnoreCase) ? 1.0 : 0.8, 1.0, bestPairScore);
+
                     candidates.Add(new FusionCandidate(
                         ElementId: element.AutomationId ?? element.Name ?? "unknown",
                         ControlType: element.ControlType,
                         ElementName: elementText,
                         ElementBounds: elementBounds,
-                        MatchedOcrLine: matchedLine,
-                        MatchedText: matchedLine?.Text ?? elementText,
+                        MatchedOcrLine: bestPairOcrLine,
+                        MatchedText: bestPairMatchedText,
                         ScoreBreakdown: breakdown,
                         SourceHwnd: observation.Hwnd,
                         SourceProcessId: observation.ProcessId,
@@ -157,6 +170,14 @@ namespace MahmoudAI.Core.Automation
             return text.Normalize(System.Text.NormalizationForm.FormKC)
                        .ToLowerInvariant()
                        .Trim();
+        }
+
+        private static bool CanApproximateSpatialProximity(ScreenRect r1, ScreenRect r2)
+        {
+            // Check if bounding boxes are within a reasonable distance (e.g. 50 pixels)
+            int dx = Math.Max(0, Math.Max(r1.X - (r2.X + r2.Width), r2.X - (r1.X + r1.Width)));
+            int dy = Math.Max(0, Math.Max(r1.Y - (r2.Y + r2.Height), r2.Y - (r1.Y + r1.Height)));
+            return dx <= 50 && dy <= 50;
         }
 
         private static double ComputeIoU(ScreenRect r1, ScreenRect r2)
