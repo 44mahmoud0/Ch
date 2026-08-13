@@ -38,6 +38,11 @@ namespace MahmoudAI.App
                             serviceProvider.GetRequiredService<AdvancedPermissionBroker>(),
                             serviceProvider.GetRequiredService<ILoggerFactory>(),
                             serviceProvider.GetRequiredService<IAutomationRiskPolicy>()));
+                    services.AddSingleton<IUiaSemanticAutomation>(serviceProvider =>
+                        WindowsAutomationComposition.CreateGuardedSemanticAutomation(
+                            serviceProvider.GetRequiredService<AdvancedPermissionBroker>(),
+                            serviceProvider.GetRequiredService<ILoggerFactory>(),
+                            serviceProvider.GetRequiredService<IAutomationRiskPolicy>()));
                     services.AddSingleton<WindowsAutomationEngine>();
                     services.AddSingleton<PersonaStateMachine>();
                     services.AddSingleton<AiProviderClient>();
