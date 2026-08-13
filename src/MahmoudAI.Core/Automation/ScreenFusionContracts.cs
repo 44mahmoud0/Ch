@@ -20,7 +20,9 @@ namespace MahmoudAI.Core.Automation
         double TextSimilarityScore,
         double ControlTypeCompatibilityScore,
         double SemanticPriorityScore,
-        double TotalScore);
+        double TotalScore,
+        double UiaTextScore,
+        double OcrTextScore);
 
     public sealed record FusionCandidate(
         string ElementId,
@@ -36,7 +38,8 @@ namespace MahmoudAI.Core.Automation
         DateTimeOffset CapturedAt,
         string OcrEngine,
         string? RecognizedLanguage,
-        bool IsAmbiguous);
+        bool IsAmbiguous,
+        bool OcrTextCorroborated);
 
     public sealed record ScreenFusionResult(
         FusionStatus Status,

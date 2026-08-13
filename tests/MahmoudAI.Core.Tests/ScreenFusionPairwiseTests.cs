@@ -9,7 +9,7 @@ namespace MahmoudAI.Core.Tests
     public sealed class ScreenFusionPairwiseTests
     {
         [Fact]
-        public void ScreenFusionEngine_PreventsCrossLineEvidenceMixup()
+        public void ScreenFusionEngine_SeparatesUiaAndOcrProvenanceAndRestrictsCorroboration()
         {
             var engine = new ScreenFusionEngine(NullLogger<ScreenFusionEngine>.Instance);
             var now = DateTimeOffset.UtcNow;
@@ -50,11 +50,13 @@ namespace MahmoudAI.Core.Tests
 
             Assert.Equal(FusionStatus.Matched, result.Status);
             Assert.NotNull(result.BestCandidate);
-            // Must match btnSave via UIA name "Save" and close line "Cancel", without picking the distant "Save" line for geometry
             Assert.Equal("btnSave", result.BestCandidate.ElementId);
-            Assert.NotNull(result.BestCandidate.MatchedOcrLine);
-            // The matched line should be the one overlapping spatially (lineCloseCancel) rather than the distant text line
-            Assert.Equal("Cancel", result.BestCandidate.MatchedOcrLine.Text);
+            
+            // Verify separated provenance scores
+            Assert.Equal(1.0, result.BestCandidate.ScoreBreakdown.UiaTextScore);
+            Assert.Equal(0.0, result.BestCandidate.ScoreBreakdown.OcrTextScore);
+            Assert.False(result.BestCandidate.OcrTextCorroborated);
+            Assert.Null(result.BestCandidate.MatchedOcrLine); // Uncorroborated OCR line is not populated into MatchedOcrLine
         }
     }
 }
