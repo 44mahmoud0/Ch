@@ -90,11 +90,19 @@ namespace MahmoudAI.Core.Tests
 
         private static void DeleteDatabaseFiles(string dbPath)
         {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             foreach (var path in new[] { dbPath, $"{dbPath}-wal", $"{dbPath}-shm" })
             {
                 if (File.Exists(path))
                 {
-                    File.Delete(path);
+                    try
+                    {
+                        File.Delete(path);
+                    }
+                    catch
+                    {
+                        // Ignore file locks during parallel test cleanup on Windows
+                    }
                 }
             }
         }
