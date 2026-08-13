@@ -16,6 +16,11 @@ if ($LASTEXITCODE -ne 0) {
     throw ".NET SDK verification failed."
 }
 
+$actualSdk = dotnet --version
+if ($actualSdk -notlike "10.0.4*") {
+    throw "Unexpected .NET SDK version: $actualSdk. Expected 10.0.4xx."
+}
+
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (!(Test-Path $vswhere)) {
     throw "Visual Studio vswhere was not found."
