@@ -87,5 +87,69 @@ namespace MahmoudAI.Core.Tests
 
             Assert.Equal(FusionStatus.StaleObservation, result.Status);
         }
+
+        [Fact]
+        public void ScreenFusionEngine_RejectsProcessMismatch()
+        {
+            var engine = new ScreenFusionEngine(NullLogger<ScreenFusionEngine>.Instance);
+            var now = DateTimeOffset.UtcNow;
+
+            var metadata = new ScreenFrameMetadata("f4", now, 100, 100, 400, 1.0f, 1.0f, 0, 0, 123, (nint)456);
+            using var frame = new RedactedScreenFrame(ScreenCaptureStatus.Captured, metadata, new byte[400], 0);
+            var ocrResult = new OcrResult(OcrStatus.Success, "TestEngine", "en", Array.Empty<OcrLine>(), string.Empty);
+
+            var uiaElements = new[]
+            {
+                new UiaElementSnapshot("btn1", "Save", "Button", "ButtonClass", "Win32", 999, 10, 10, 40, 20, true, false, Array.Empty<string>())
+            };
+
+            var transform = new FrameCoordinateTransform(
+                new ScreenRect(0, 0, 800, 600), new ScreenRect(0, 0, 100, 100), 100, 100, 1.0, 1.0, CoordinateSpace.AbsoluteDesktopPhysicalPixels);
+
+            var observation = new ScreenObservation((nint)456, 123, now, frame, ocrResult, uiaElements, transform, TimeSpan.FromSeconds(5));
+
+            var result = engine.Fuse(observation, "Save");
+
+            Assert.Equal(FusionStatus.ProcessMismatch, result.Status);
+        }
+
+        [Fact]
+        public void ScreenFusionEngine_HandlesCroppedAndDownscaledFramesCorrectly()
+        {
+            var engine = new ScreenFusionEngine(NullLogger<ScreenFusionEngine>.Instance);
+            var now = DateTimeOffset.UtcNow;
+
+            var metadata = new ScreenFrameMetadata("f5", now, 200, 200, 400, 1.0f, 1.0f, 0, 0, 123, (nint)456);
+            using var frame = new RedactedScreenFrame(ScreenCaptureStatus.Captured, metadata, new byte[400], 0);
+
+            // OCR line in local output coordinates (scaled 2x back to region)
+            var ocrLine = new OcrLine("Submit", Array.Empty<OcrWord>(), new ScreenPolygon(
+                new ScreenPoint(5, 5), new ScreenPoint(50, 5), new ScreenPoint(50, 20), new ScreenPoint(5, 20),
+                new ScreenPoint(5, 5), new ScreenPoint(50, 20)));
+            var ocrResult = new OcrResult(OcrStatus.Success, "TestEngine", "en", new[] { ocrLine }, "Submit");
+
+            var uiaElements = new[]
+            {
+                new UiaElementSnapshot("btnSubmit", "Submit", "Button", "ButtonClass", "Win32", 123, 10, 10, 90, 30, true, false, Array.Empty<string>())
+            };
+
+            // Transform with scale 2.0 (output width 200 mapped to region width 400)
+            var transform = new FrameCoordinateTransform(
+                SourceWindowBoundsPx: new ScreenRect(100, 100, 800, 600),
+                SourceRegionPx: new ScreenRect(10, 10, 400, 400),
+                OutputWidthPx: 200,
+                OutputHeightPx: 200,
+                OutputToSourceScaleX: 2.0,
+                OutputToSourceScaleY: 2.0,
+                CoordinateSpace: CoordinateSpace.AbsoluteDesktopPhysicalPixels);
+
+            var observation = new ScreenObservation((nint)456, 123, now, frame, ocrResult, uiaElements, transform, TimeSpan.FromSeconds(5));
+
+            var result = engine.Fuse(observation, "Submit");
+
+            Assert.Equal(FusionStatus.Matched, result.Status);
+            Assert.NotNull(result.BestCandidate);
+            Assert.Equal("btnSubmit", result.BestCandidate.ElementId);
+        }
     }
 }

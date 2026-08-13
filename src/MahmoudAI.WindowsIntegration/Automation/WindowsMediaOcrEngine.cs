@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 using MahmoudAI.Core.Automation;
 using Microsoft.Extensions.Logging;
-using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
@@ -125,11 +125,6 @@ namespace MahmoudAI.WindowsIntegration.Automation
                 var lines = new List<MahmoudAI.Core.Automation.OcrLine>();
                 var fullTextBuilder = new System.Text.StringBuilder();
 
-                var originX = frame.Metadata.ScreenOriginX;
-                var originY = frame.Metadata.ScreenOriginY;
-                var dpiScaleX = frame.Metadata.DpiScaleX > 0 ? frame.Metadata.DpiScaleX : 1.0f;
-                var dpiScaleY = frame.Metadata.DpiScaleY > 0 ? frame.Metadata.DpiScaleY : 1.0f;
-
                 foreach (var line in ocrResult.Lines)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -138,7 +133,7 @@ namespace MahmoudAI.WindowsIntegration.Automation
                     foreach (var word in line.Words)
                     {
                         var rect = word.BoundingRect;
-                        var wBounds = CreatePolygon(rect.X, rect.Y, rect.Width, rect.Height, originX, originY, dpiScaleX, dpiScaleY);
+                        var wBounds = CreateLocalPolygon(rect.X, rect.Y, rect.Width, rect.Height);
                         words.Add(new MahmoudAI.Core.Automation.OcrWord(word.Text, wBounds, null));
                     }
 
@@ -152,7 +147,7 @@ namespace MahmoudAI.WindowsIntegration.Automation
                         maxY = Math.Max(maxY, r.Y + r.Height);
                     }
                     if (minX == double.MaxValue) { minX = 0; minY = 0; maxX = 100; maxY = 20; }
-                    var lBounds = CreatePolygon(minX, minY, maxX - minX, maxY - minY, originX, originY, dpiScaleX, dpiScaleY);
+                    var lBounds = CreateLocalPolygon(minX, minY, maxX - minX, maxY - minY);
                     lines.Add(new MahmoudAI.Core.Automation.OcrLine(line.Text, words, lBounds));
                     fullTextBuilder.AppendLine(line.Text);
                 }
@@ -222,33 +217,20 @@ namespace MahmoudAI.WindowsIntegration.Automation
             }
         }
 
-        private static ScreenPolygon CreatePolygon(
-            double x,
-            double y,
-            double width,
-            double height,
-            int originX,
-            int originY,
-            float dpiScaleX,
-            float dpiScaleY)
+        private static ScreenPolygon CreateLocalPolygon(double x, double y, double width, double height)
         {
             var fx = (float)x;
             var fy = (float)y;
             var fw = (float)width;
             var fh = (float)height;
 
-            var absX = originX + (fx / dpiScaleX);
-            var absY = originY + (fy / dpiScaleY);
-            var absW = fw / dpiScaleX;
-            var absH = fh / dpiScaleY;
-
             return new ScreenPolygon(
                 TopLeft: new ScreenPoint(fx, fy),
                 TopRight: new ScreenPoint(fx + fw, fy),
                 BottomRight: new ScreenPoint(fx + fw, fy + fh),
                 BottomLeft: new ScreenPoint(fx, fy + fh),
-                AbsoluteTopLeft: new ScreenPoint(absX, absY),
-                AbsoluteBottomRight: new ScreenPoint(absX + absW, absY + absH));
+                AbsoluteTopLeft: new ScreenPoint(fx, fy),
+                AbsoluteBottomRight: new ScreenPoint(fx + fw, fy + fh));
         }
     }
 }

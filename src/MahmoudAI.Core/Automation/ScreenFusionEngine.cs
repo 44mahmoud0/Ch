@@ -32,6 +32,24 @@ namespace MahmoudAI.Core.Automation
                 return new ScreenFusionResult(FusionStatus.ProviderError, Array.Empty<FusionCandidate>(), null, "Observation frame or OCR result failed.");
             }
 
+            // Identity & Process Mismatch guard
+            foreach (var element in observation.UiaElements)
+            {
+                if (observation.ProcessId > 0 && element.ProcessId > 0 && element.ProcessId != observation.ProcessId)
+                {
+                    _logger.LogWarning("Process mismatch detected between observation PID {ObsPid} and UIA element PID {ElementPid}.", observation.ProcessId, element.ProcessId);
+                    return new ScreenFusionResult(FusionStatus.ProcessMismatch, Array.Empty<FusionCandidate>(), null, $"Process mismatch: observation PID {observation.ProcessId} vs element PID {element.ProcessId}.");
+                }
+            }
+
+            // Coordinate transform validation guard
+            if (observation.Transform.OutputWidthPx <= 0 || observation.Transform.OutputHeightPx <= 0 ||
+                observation.Transform.OutputToSourceScaleX <= 0 || observation.Transform.OutputToSourceScaleY <= 0)
+            {
+                _logger.LogWarning("Invalid coordinate transform parameters in observation.");
+                return new ScreenFusionResult(FusionStatus.InvalidCoordinateTransform, Array.Empty<FusionCandidate>(), null, "Coordinate transform parameters are invalid or non-positive.");
+            }
+
             var candidates = new List<FusionCandidate>();
             var normalizedTarget = NormalizeText(targetQuery);
 
@@ -56,32 +74,43 @@ namespace MahmoudAI.Core.Automation
                 }
 
                 OcrLine? matchedLine = null;
+                double bestIoU = 0.0;
+
                 foreach (var line in observation.OcrResult.Lines)
                 {
                     var normalizedLine = NormalizeText(line.Text);
-                    if (!string.IsNullOrEmpty(normalizedTarget) && normalizedLine.Contains(normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                    bool lineMatchesText = !string.IsNullOrEmpty(normalizedTarget) && (normalizedLine.Contains(normalizedTarget, StringComparison.OrdinalIgnoreCase) || normalizedTarget.Contains(normalizedLine, StringComparison.OrdinalIgnoreCase));
+
+                    // Map line bounding polygon through canonical FrameCoordinateTransform
+                    var mappedPolygon = observation.Transform.MapOutputPolygonToAbsoluteDesktop(line.Bounds);
+                    var absTopLeft = mappedPolygon.AbsoluteTopLeft;
+                    var absBottomRight = mappedPolygon.AbsoluteBottomRight;
+                    var ocrRect = new ScreenRect((int)absTopLeft.X, (int)absTopLeft.Y, Math.Max(1, (int)(absBottomRight.X - absTopLeft.X)), Math.Max(1, (int)(absBottomRight.Y - absTopLeft.Y)));
+
+                    double iou = ComputeIoU(elementBounds, ocrRect);
+
+                    if (lineMatchesText || iou > 0.0)
                     {
-                        matchedLine = line;
-                        textSimilarity = Math.Max(textSimilarity, 0.90);
-                        break;
+                        if (iou >= bestIoU)
+                        {
+                            bestIoU = iou;
+                            matchedLine = line;
+                        }
+                        if (lineMatchesText)
+                        {
+                            textSimilarity = Math.Max(textSimilarity, 0.90);
+                        }
                     }
                 }
 
-                double geometryScore = 0.5;
-                if (matchedLine is not null)
-                {
-                    var absTopLeft = matchedLine.Bounds.AbsoluteTopLeft;
-                    var absBottomRight = matchedLine.Bounds.AbsoluteBottomRight;
-                    var ocrRect = new ScreenRect((int)absTopLeft.X, (int)absTopLeft.Y, (int)(absBottomRight.X - absTopLeft.X), (int)(absBottomRight.Y - absTopLeft.Y));
-                    geometryScore = ComputeIoU(elementBounds, ocrRect) > 0.0 ? 1.0 : 0.4;
-                }
-
+                double geometryScore = bestIoU > 0.0 ? Math.Clamp(bestIoU * 1.5, 0.1, 1.0) : 0.0;
                 double controlTypeScore = element.ControlType.Equals("Button", StringComparison.OrdinalIgnoreCase) ? 1.0 : 0.8;
-                double semanticPriority = 1.0; // UIA-backed authoritative reference
+                double semanticPriority = 1.0; // UIA authoritative reference
 
                 double totalScore = (geometryScore * 0.3) + (textSimilarity * 0.4) + (controlTypeScore * 0.2) + (semanticPriority * 0.1);
 
-                if (textSimilarity > 0.4 || geometryScore > 0.4)
+                // Strict rejection of false candidates: must have non-zero text similarity or geometric overlap matching target query
+                if (textSimilarity >= 0.7 || (geometryScore > 0.0 && textSimilarity >= 0.4))
                 {
                     var breakdown = new FusionScoreBreakdown(geometryScore, textSimilarity, controlTypeScore, semanticPriority, totalScore);
                     candidates.Add(new FusionCandidate(
