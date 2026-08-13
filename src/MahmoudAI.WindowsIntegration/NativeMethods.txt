@@ -10,3 +10,4 @@ EnumWindows
 SendInput
 GetWindowRect
 IGraphicsCaptureItemInterop
+GetDpiForWindow

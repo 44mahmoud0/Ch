@@ -51,7 +51,7 @@ namespace MahmoudAI.WindowsIntegration.Automation
                 return Failure(ScreenCaptureStatus.ProcessMismatch, "Screen Capture V1 requires an explicit positive target process ID.");
             }
 
-            if (!TryValidateTarget(hwnd, expectedProcessId, out var originX, out var originY, out var targetStatus, out var targetError))
+            if (!TryValidateTarget(hwnd, expectedProcessId, out var originX, out var originY, out _, out _, out var targetStatus, out var targetError))
             {
                 return Failure(targetStatus, targetError);
             }
@@ -73,48 +73,107 @@ namespace MahmoudAI.WindowsIntegration.Automation
                 return Failure(ScreenCaptureStatus.NotFound, "Windows.Graphics.Capture could not create an item for the target window.");
             }
 
-            using var framePool = Direct3D11CaptureFramePool.Create(
+            var itemSize = item.Size;
+            if (itemSize.Width <= 0 || itemSize.Height <= 0)
+            {
+                return Failure(ScreenCaptureStatus.NotFound, "Target window has zero or negative capture dimensions.");
+            }
+
+            using var framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
                 _device,
                 DirectXPixelFormat.B8G8R8A8UIntNormalized,
                 FrameBufferCount,
-                item.Size);
+                itemSize);
             using var session = framePool.CreateCaptureSession(item);
             session.IsCursorCaptureEnabled = request.IncludeCursor;
 
-            var frameTask = WaitForFrameAsync(framePool, cancellationToken);
-            session.StartCapture();
-            using var frame = await frameTask.ConfigureAwait(false);
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!TryValidateTarget(hwnd, expectedProcessId, out originX, out originY, out targetStatus, out targetError))
+            Windows.Graphics.Capture.Direct3D11CaptureFrame frame;
+            try
             {
-                return Failure(targetStatus, targetError);
+                var frameTask = WaitForFrameAsync(framePool, linkedCts.Token);
+                session.StartCapture();
+                frame = await frameTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                return Failure(ScreenCaptureStatus.Timeout, "Windows.Graphics.Capture frame acquisition timed out after 5 seconds.");
+            }
+            catch (OperationCanceledException)
+            {
+                return Failure(ScreenCaptureStatus.Cancelled, "Screen capture was cancelled.");
+            }
+            catch (Exception ex)
+            {
+                return Failure(ScreenCaptureStatus.ProviderError, $"Frame capture failed: {ex.Message}");
             }
 
-            using var bitmap = CanvasBitmap.CreateFromDirect3D11Surface(_device, frame.Surface);
-            var contentSize = frame.ContentSize;
-            var pixelWidth = Math.Max(1, contentSize.Width);
-            var pixelHeight = Math.Max(1, contentSize.Height);
-            var bytesPerPixel = 4;
-            var sourcePixels = bitmap.GetPixelBytes();
-            var expectedLength = checked(pixelWidth * pixelHeight * bytesPerPixel);
-            var pixels = sourcePixels.Length == expectedLength
-                ? sourcePixels
-                : CopyContentRegion(sourcePixels, checked((int)bitmap.SizeInPixels.Width), pixelWidth, pixelHeight, bytesPerPixel);
+            using (frame)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!TryValidateTarget(hwnd, expectedProcessId, out originX, out originY, out var dpiScaleX, out var dpiScaleY, out targetStatus, out targetError))
+                {
+                    return Failure(targetStatus, targetError);
+                }
 
-            var metadata = new ScreenFrameMetadata(
-                Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DateTimeOffset.UtcNow,
-                pixelWidth,
-                pixelHeight,
-                checked(pixelWidth * bytesPerPixel),
-                1.0f,
-                1.0f,
-                originX,
-                originY,
-                expectedProcessId,
-                hwnd);
-            return new CapturedScreenFrame(ScreenCaptureStatus.Captured, metadata, pixels);
+                using var bitmap = CanvasBitmap.CreateFromDirect3D11Surface(_device, frame.Surface);
+                var sourceWidth = (int)bitmap.SizeInPixels.Width;
+                var sourceHeight = (int)bitmap.SizeInPixels.Height;
+                var sourcePixels = bitmap.GetPixelBytes();
+
+                var region = request.Region;
+                var cropX = region?.X ?? 0;
+                var cropY = region?.Y ?? 0;
+                var cropWidth = region?.Width > 0 ? region.Width : sourceWidth;
+                var cropHeight = region?.Height > 0 ? region.Height : sourceHeight;
+
+                cropX = Math.Clamp(cropX, 0, Math.Max(0, sourceWidth - 1));
+                cropY = Math.Clamp(cropY, 0, Math.Max(0, sourceHeight - 1));
+                cropWidth = Math.Clamp(cropWidth, 1, sourceWidth - cropX);
+                cropHeight = Math.Clamp(cropHeight, 1, sourceHeight - cropY);
+
+                var finalWidth = cropWidth;
+                var finalHeight = cropHeight;
+                if (request.MaxWidth is int maxWidth && maxWidth > 0 && finalWidth > maxWidth)
+                {
+                    finalHeight = (int)((double)maxWidth / finalWidth * finalHeight);
+                    finalWidth = maxWidth;
+                }
+                if (request.MaxHeight is int maxHeight && maxHeight > 0 && finalHeight > maxHeight)
+                {
+                    finalWidth = (int)((double)maxHeight / finalHeight * finalWidth);
+                    finalHeight = maxHeight;
+                }
+
+                var bytesPerPixel = 4;
+                var pixels = ExtractAndProcessRegion(
+                    sourcePixels,
+                    sourceWidth,
+                    sourceHeight,
+                    cropX,
+                    cropY,
+                    cropWidth,
+                    cropHeight,
+                    finalWidth,
+                    finalHeight,
+                    bytesPerPixel);
+
+                var metadata = new ScreenFrameMetadata(
+                    Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+                    DateTimeOffset.UtcNow,
+                    finalWidth,
+                    finalHeight,
+                    checked(finalWidth * bytesPerPixel),
+                    dpiScaleX,
+                    dpiScaleY,
+                    originX + cropX,
+                    originY + cropY,
+                    expectedProcessId,
+                    hwnd);
+                return new CapturedScreenFrame(ScreenCaptureStatus.Captured, metadata, pixels);
+            }
         }
 
         public void Dispose()
@@ -159,22 +218,63 @@ namespace MahmoudAI.WindowsIntegration.Automation
             }
         }
 
-        private static byte[] CopyContentRegion(
+        private static byte[] ExtractAndProcessRegion(
             byte[] source,
             int sourceWidth,
-            int width,
-            int height,
+            int sourceHeight,
+            int cropX,
+            int cropY,
+            int cropWidth,
+            int cropHeight,
+            int finalWidth,
+            int finalHeight,
             int bytesPerPixel)
         {
             var sourceStride = checked(sourceWidth * bytesPerPixel);
-            var targetStride = checked(width * bytesPerPixel);
-            var target = new byte[checked(targetStride * height)];
-            for (var row = 0; row < height; row++)
+            var croppedStride = checked(cropWidth * bytesPerPixel);
+            var cropped = new byte[checked(croppedStride * cropHeight)];
+
+            for (var row = 0; row < cropHeight; row++)
             {
-                Buffer.BlockCopy(source, checked(row * sourceStride), target, checked(row * targetStride), targetStride);
+                var srcRow = cropY + row;
+                if (srcRow >= sourceHeight) break;
+                var srcOffset = checked(srcRow * sourceStride + cropX * bytesPerPixel);
+                var dstOffset = checked(row * croppedStride);
+                Buffer.BlockCopy(source, srcOffset, cropped, dstOffset, Math.Min(croppedStride, source.Length - srcOffset));
             }
 
-            return target;
+            if (cropWidth == finalWidth && cropHeight == finalHeight)
+            {
+                return cropped;
+            }
+
+            var finalStride = checked(finalWidth * bytesPerPixel);
+            var final = new byte[checked(finalStride * finalHeight)];
+            for (var y = 0; y < finalHeight; y++)
+            {
+                var srcY = (int)((double)y / finalHeight * cropHeight);
+                srcY = Math.Clamp(srcY, 0, cropHeight - 1);
+                var srcRowOffset = checked(srcY * croppedStride);
+                var dstRowOffset = checked(y * finalStride);
+
+                for (var x = 0; x < finalWidth; x++)
+                {
+                    var srcX = (int)((double)x / finalWidth * cropWidth);
+                    srcX = Math.Clamp(srcX, 0, cropWidth - 1);
+                    var srcPixelOffset = checked(srcRowOffset + srcX * bytesPerPixel);
+                    var dstPixelOffset = checked(dstRowOffset + x * bytesPerPixel);
+
+                    if (srcPixelOffset + bytesPerPixel <= cropped.Length && dstPixelOffset + bytesPerPixel <= final.Length)
+                    {
+                        final[dstPixelOffset] = cropped[srcPixelOffset];
+                        final[dstPixelOffset + 1] = cropped[srcPixelOffset + 1];
+                        final[dstPixelOffset + 2] = cropped[srcPixelOffset + 2];
+                        final[dstPixelOffset + 3] = cropped[srcPixelOffset + 3];
+                    }
+                }
+            }
+
+            return final;
         }
 
         private static bool TryValidateTarget(
@@ -182,11 +282,15 @@ namespace MahmoudAI.WindowsIntegration.Automation
             int expectedProcessId,
             out int originX,
             out int originY,
+            out float dpiScaleX,
+            out float dpiScaleY,
             out ScreenCaptureStatus status,
             out string error)
         {
             originX = 0;
             originY = 0;
+            dpiScaleX = 1.0f;
+            dpiScaleY = 1.0f;
             status = ScreenCaptureStatus.NotFound;
             error = "Target window was not found.";
 
@@ -220,6 +324,14 @@ namespace MahmoudAI.WindowsIntegration.Automation
 
             originX = bounds.left;
             originY = bounds.top;
+
+            var dpi = PInvoke.GetDpiForWindow(window);
+            if (dpi > 0)
+            {
+                dpiScaleX = dpi / 96.0f;
+                dpiScaleY = dpi / 96.0f;
+            }
+
             status = ScreenCaptureStatus.Captured;
             error = string.Empty;
             return true;
