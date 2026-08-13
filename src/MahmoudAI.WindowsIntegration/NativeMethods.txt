@@ -8,3 +8,5 @@ IsWindowVisible
 GetWindowThreadProcessId
 EnumWindows
 SendInput
+GetWindowRect
+IGraphicsCaptureItemInterop

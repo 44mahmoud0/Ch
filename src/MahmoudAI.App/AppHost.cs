@@ -43,6 +43,10 @@ namespace MahmoudAI.App
                             serviceProvider.GetRequiredService<AdvancedPermissionBroker>(),
                             serviceProvider.GetRequiredService<ILoggerFactory>(),
                             serviceProvider.GetRequiredService<IAutomationRiskPolicy>()));
+                    services.AddSingleton<IScreenCaptureBackend>(serviceProvider =>
+                        WindowsAutomationComposition.CreateGuardedScreenCaptureBackend(
+                            serviceProvider.GetRequiredService<AdvancedPermissionBroker>(),
+                            serviceProvider.GetRequiredService<IAutomationRiskPolicy>()));
                     services.AddSingleton<WindowsAutomationEngine>();
                     services.AddSingleton<PersonaStateMachine>();
                     services.AddSingleton<AiProviderClient>();

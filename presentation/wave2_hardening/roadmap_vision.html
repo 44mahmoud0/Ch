@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;900&display=swap" rel="stylesheet">
+    <style>
+      * { margin: 0; padding: 0; }
+      .slide-container {
+        width: 1280px;
+        min-height: 720px;
+        box-sizing: border-box;
+        background: #FFFFFF;
+        color: #000000;
+        font-family: 'Playfair Display', serif;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .vertical-rule {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 8px;
+        background: #991B1B;
+      }
+
+      .header-section {
+        height: 180px;
+        padding-left: 80px;
+        padding-top: 40px;
+        display: flex;
+        align-items: flex-end;
+      }
+
+      .header-section h1 {
+        font-weight: 900;
+        font-size: 56px;
+        line-height: 1.1;
+        text-transform: uppercase;
+        letter-spacing: -1px;
+        max-width: 1100px;
+      }
+
+      .content-section {
+        flex: 1;
+        padding-left: 80px;
+        padding-right: 60px;
+        padding-top: 32px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+      }
+
+      .column {
+        font-size: 22px;
+        line-height: 1.5;
+        text-align: justify;
+      }
+
+      .list-item {
+        display: flex;
+        gap: 12px;
+        padding-top: 15px;
+      }
+
+      .bullet {
+        width: 10px;
+        height: 10px;
+        background: #991B1B;
+        flex-shrink: 0;
+        margin-top: 10px;
+      }
+
+      .footer {
+        padding-left: 80px;
+        padding-top: 20px;
+        font-size: 14px;
+        color: #991B1B;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="vertical-rule"></div>
+        
+        <div class="header-section">
+            <h1>The Next Wave: Secure Screen Understanding Pipeline</h1>
+        </div>
+
+        <div class="content-section">
+            <div class="column">
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Transitioning Mahmoud AI from blind mechanical execution to perceptual grounding via the Windows.Graphics.Capture frame pipeline.</div>
+                </div>
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Integrating local OCR adapters to extract text and spatial bounding-box coordinates, establishing a visual index for the TaskGraph.</div>
+                </div>
+            </div>
+            <div class="column">
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Implementing VLM grounding pipelines that correlate visual bounding boxes with UIA3 control trees and SQLite semantic memory.</div>
+                </div>
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Enforcing a strict pre-action validation sequence: Vision/UIA Target → Identity Revalidation → Capability Lease → Automation Gateway → Side Effect.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Strategic Roadmap • Future Engineering Milestones
+        </div>
+    </div>
+</body>
+</html>

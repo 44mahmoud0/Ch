@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;900&display=swap" rel="stylesheet">
+    <style>
+      .slide-container {
+        width: 1280px;
+        min-height: 720px;
+        box-sizing: border-box;
+        background: #FFFFFF;
+        color: #000000;
+        font-family: 'Playfair Display', serif;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .vertical-rule {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 8px;
+        background: #991B1B;
+      }
+
+      .header-section {
+        height: 170px; /* keep title spacing and upper padding */
+        padding-left: 80px;
+        padding-top: 40px; /* must not be changed */
+        display: flex;
+        align-items: flex-end;
+      }
+
+      .header-section h1 {
+        font-weight: 900;
+        font-size: 56px;
+        line-height: 1.1;
+        text-transform: uppercase;
+        letter-spacing: -1px;
+        max-width: 1100px;
+      }
+
+      .content-section {
+        flex: 1;
+        padding-left: 80px;
+        padding-right: 60px;
+        padding-top: 8px; /* reduced */
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px; /* reduced */
+      }
+
+      .column {
+        font-size: 22px;
+        line-height: 1.5;
+        text-align: justify;
+      }
+
+      .column-title {
+        font-weight: 900;
+        color: #991B1B;
+        font-size: 28px;
+        text-transform: uppercase;
+        margin-bottom: 8px; /* reduced */
+        padding-top: 6px;
+      }
+
+      .list-item {
+        display: flex;
+        gap: 12px;
+        padding-top: 6px; /* reduced */
+      }
+
+      .bullet {
+        width: 10px;
+        height: 10px;
+        background: #000000;
+        flex-shrink: 0;
+        margin-top: 6px; /* reduced */
+      }
+
+      .footer {
+        padding-left: 80px;
+        padding-top: 12px; /* reduced */
+        padding-bottom: 12px; /* reduced */
+        font-size: 14px;
+        color: #991B1B;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="vertical-rule"></div>
+        
+        <div class="header-section">
+            <h1>Verification Integrity: Local Workspace vs. GitHub Main</h1>
+        </div>
+
+        <div class="content-section">
+            <div class="column">
+                <div class="column-title">GitHub Verified (Wave 1)</div>
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Commit fcc0c47 establishes the WinUI 3 architecture and Win32 automation backend.</div>
+                </div>
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Capability leases and the TaskGraph scheduler are active and passing CI gates.</div>
+                </div>
+            </div>
+            <div class="column">
+                <div class="column-title">Local Implementation (Wave 2)</div>
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Wave 2 layout and WindowsIntegration assembly are present in the local workspace.</div>
+                </div>
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>CsWin32 interop and solution mappings validated locally (50 core tests green).</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Transparency Report • Status Audit
+        </div>
+    </div>
+</body>
+</html>

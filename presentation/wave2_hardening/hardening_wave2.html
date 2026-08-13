@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;900&display=swap" rel="stylesheet">
+    <style>
+      html,body{height:100%;margin:0}
+      .slide-container {
+        width: 1280px;
+        min-height: 720px;
+        box-sizing: border-box;
+        background: #FFFFFF;
+        color: #000000;
+        font-family: 'Playfair Display', serif;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .vertical-rule {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 8px;
+        background: #991B1B;
+      }
+
+      .header-section {
+        height: 160px; /* reduced from 180 */
+        padding-left: 80px;
+        padding-top: 40px; /* must not be changed */
+        display: flex;
+        align-items: flex-end;
+      }
+
+      .header-section h1 {
+        font-weight: 900;
+        font-size: 56px;
+        line-height: 1.1;
+        text-transform: uppercase;
+        letter-spacing: -1px;
+        max-width: 1100px;
+      }
+
+      .content-section {
+        flex: 1;
+        padding-left: 80px;
+        padding-right: 60px;
+        padding-top: 24px; /* reduced from 32 */
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 28px; /* reduced gap */
+      }
+
+      .column {
+        font-size: 22px;
+        line-height: 1.5;
+        text-align: justify;
+      }
+
+      .list-item {
+        display: flex;
+        gap: 12px;
+        padding-top: 12px; /* reduced from 15 */
+      }
+
+      .bullet {
+        width: 10px;
+        height: 10px;
+        background: #991B1B;
+        flex-shrink: 0;
+        margin-top: 10px;
+      }
+
+      .footer {
+        padding-left: 80px;
+        padding-top: 10px; /* reduced from 20 */
+        padding-bottom: 10px; /* reduced from 20 */
+        font-size: 14px;
+        color: #991B1B;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="vertical-rule"></div>
+        
+        <div class="header-section">
+            <h1>Hardened Security: CsWin32 and Immutable Leases</h1>
+        </div>
+
+        <div class="content-section">
+            <div class="column">
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Replaced hand-maintained Win32 interop declarations with pinned Microsoft.Windows.CsWin32 source-generated interop, ensuring type safety and narrow API surface.</div>
+                </div>
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Eliminated cancellation race conditions by storing immutable cancellation token snapshots per lease handle, guaranteeing atomic revocation during side effects.</div>
+                </div>
+            </div>
+            <div class="column">
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Strengthened window targeting with strict HWND validation, process identity checks, and mandatory pre-action revalidation to prevent target mismatch.</div>
+                </div>
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Retired legacy synchronous permission requests to prevent UI thread deadlocks, transitioning all capability approvals to a non-blocking asynchronous flow.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Technical Audit • Security Infrastructure
+        </div>
+    </div>
+</body>
+</html>

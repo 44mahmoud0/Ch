@@ -29,6 +29,20 @@ namespace MahmoudAI.Core.Automation
                 riskPolicy);
         }
 
+        public static IScreenCaptureBackend CreateGuardedScreenCaptureBackend(
+            AdvancedPermissionBroker permissionBroker,
+            IAutomationRiskPolicy? riskPolicy = null,
+            TimeSpan? leaseDuration = null)
+        {
+            ArgumentNullException.ThrowIfNull(permissionBroker);
+
+            return new CapabilityGuardedScreenCaptureBackend(
+                permissionBroker,
+                new WindowsGraphicsCaptureBackend(),
+                leaseDuration,
+                riskPolicy);
+        }
+
         public static IUiaSemanticAutomation CreateGuardedSemanticAutomation(
             AdvancedPermissionBroker permissionBroker,
             ILoggerFactory loggerFactory,

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;900&display=swap" rel="stylesheet">
+    <style>
+      html, body { height: 100%; margin: 0; }
+      .slide-container {
+        width: 1280px;
+        min-height: 720px;
+        box-sizing: border-box;
+        background: #FFFFFF;
+        color: #000000;
+        font-family: 'Playfair Display', serif;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .vertical-rule {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 8px;
+        background: #991B1B;
+      }
+
+      .header-section {
+        height: 180px;
+        padding-left: 80px;
+        display: flex;
+        align-items: flex-end;
+        padding-bottom: 40px;
+      }
+
+      .header-section h1 {
+        font-weight: 900;
+        font-size: 64px;
+        line-height: 1.1;
+        text-transform: uppercase;
+        letter-spacing: -1px;
+        max-width: 1000px;
+      }
+
+      .content-section {
+        flex: 1;
+        padding: 0 80px 32px 80px; /* reduced bottom padding to save height */
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 60px;
+      }
+
+      .column {
+        font-size: 24px;
+        line-height: 1.6;
+        text-align: justify;
+      }
+
+      .column p {
+        margin-bottom: 20px;
+      }
+
+      .list-item {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 24px;
+      }
+
+      .bullet {
+        width: 12px;
+        height: 12px;
+        background: #991B1B;
+        flex-shrink: 0;
+        margin-top: 12px;
+      }
+
+      .footer {
+        padding: 0 80px 32px 80px; /* reduced bottom padding by 8px to eliminate overflow */
+        font-size: 16px;
+        color: #991B1B;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+      }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="vertical-rule"></div>
+        
+        <div class="header-section">
+            <h1>Simulation to Production: Native .NET 10 Architecture</h1>
+        </div>
+
+        <div class="content-section">
+            <div class="column">
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Mahmoud AI replaces legacy simulation layers with a high-performance native Windows 10/11 desktop architecture built on .NET 10 LTS and WinUI 3.</div>
+                </div>
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>The core runtime orchestration combines a production-grade TaskGraph V2 scheduler with an asynchronous event hub for low-latency mission execution.</div>
+                </div>
+            </div>
+            <div class="column">
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Durable SQLite mission-event persistence ensures idempotent hashing and comprehensive state recovery across application restarts.</div>
+                </div>
+                <div class="list-item">
+                    <div class="bullet"></div>
+                    <div>Security boundaries are strictly enforced by revocation-aware capability leases and the CapabilityGuardedAutomationBackend to prevent unauthorized side effects.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Mahmoud AI Engineering • Wave 2 Status Report
+        </div>
+    </div>
+</body>
+</html>

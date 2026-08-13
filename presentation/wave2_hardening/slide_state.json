@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "title": "Simulation to Production: Native .NET 10 Architecture",
+    "created": 1786586876.974,
+    "last_updated": 1786587122.85,
+    "total_slides": 5
+  },
+  "slides": [
+    {
+      "id": "intro_architecture",
+      "state": "edited",
+      "pageNum": 1
+    },
+    {
+      "id": "verification_status",
+      "state": "edited",
+      "pageNum": 2
+    },
+    {
+      "id": "hardening_wave2",
+      "state": "edited",
+      "pageNum": 3
+    },
+    {
+      "id": "semantic_automation",
+      "state": "edited",
+      "pageNum": 4
+    },
+    {
+      "id": "roadmap_vision",
+      "state": "edited",
+      "pageNum": 5
+    }
+  ],
+  "outline": [
+    {
+      "id": "intro_architecture",
+      "title": "Simulation to Production: Native .NET 10 Architecture",
+      "summary": "Summary of the move from simulated layers to a native WinUI 3 architecture with durable SQLite mission persistence and TaskGraph V2 scheduling.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "verification_status",
+      "title": "Verification Integrity: Local Workspace vs. GitHub Main",
+      "summary": "Transparent audit of Wave 1 (verified on GitHub) versus Wave 2 (locally structured and ready for push), ensuring zero regression across engineering waves.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "hardening_wave2",
+      "title": "Hardened Security: CsWin32 and Immutable Leases",
+      "summary": "Detailed view of the security hardening, including source-generated Win32 interop, immutable lease snapshots, and deadlock prevention.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "semantic_automation",
+      "title": "Semantic-First Workflow: UIA3 and Guarded Fallback",
+      "summary": "Implementation of Uia3AutomationBackend for control-pattern inspection with a strict guarded fallback to Win32 pointer and Unicode input.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "roadmap_vision",
+      "title": "The Next Wave: Secure Screen Understanding Pipeline",
+      "summary": "Roadmap for perceptual grounding via secure capture, OCR text indexing, and VLM grounding with strict pre-action identity revalidation.",
+      "image_plan": "Use a suitable image if needed"
+    }
+  ]
+}

@@ -66,6 +66,60 @@
                     Content="Hidden" />
             </StackPanel>
 
+            <Border
+                AutomationProperties.AutomationId="CaptureFixturePanel"
+                AutomationProperties.Name="Capture fixture"
+                Background="#101827"
+                CornerRadius="8"
+                Padding="20"
+                Width="640"
+                Height="260">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        AutomationProperties.AutomationId="CaptureFixtureTitle"
+                        AutomationProperties.Name="Capture fixture title"
+                        Foreground="#9FE7FF"
+                        FontSize="22"
+                        Text="CAPTURE FIXTURE / WINDOW TARGET" />
+                    <Grid Grid.Row="1" Margin="0,16,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="8">
+                            <TextBlock Foreground="White" FontSize="18" Text="Mahmoud AI" />
+                            <TextBlock Foreground="#CBD5E1" Text="Deterministic visual content for Windows Graphics Capture E2E." TextWrapping="Wrap" />
+                            <TextBlock
+                                AutomationProperties.AutomationId="CaptureFixtureEnglish"
+                                AutomationProperties.Name="English fixture text"
+                                Foreground="#FDE68A"
+                                Text="English: Window capture fixture" />
+                            <TextBlock
+                                AutomationProperties.AutomationId="CaptureFixtureArabic"
+                                AutomationProperties.Name="Arabic fixture text"
+                                FlowDirection="RightToLeft"
+                                Foreground="#FDE68A"
+                                Text="العربية: عينة التقاط النافذة" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                            <Ellipse Fill="#38BDF8" Width="64" Height="64" />
+                            <TextBlock Foreground="#BAE6FD" Text="SAFE" HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock
+                        Grid.Row="2"
+                        AutomationProperties.AutomationId="CaptureFixtureFooter"
+                        AutomationProperties.Name="Capture fixture footer"
+                        Foreground="#94A3B8"
+                        Text="No persistence • No OCR • No VLM" />
+                </Grid>
+            </Border>
+
             <TextBlock
                 x:Name="StatusText"
                 AutomationProperties.AutomationId="StatusText"

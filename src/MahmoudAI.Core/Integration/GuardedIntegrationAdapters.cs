@@ -177,6 +177,107 @@ namespace MahmoudAI.Core.Integration
         }
     }
 
+    public sealed class CapabilityGuardedScreenCaptureBackend : IScreenCaptureBackend, IDisposable
+    {
+        private readonly AdvancedPermissionBroker _permissionBroker;
+        private readonly IScreenCaptureBackend _inner;
+        private readonly IAutomationRiskPolicy _riskPolicy;
+        private readonly TimeSpan _leaseDuration;
+
+        public CapabilityGuardedScreenCaptureBackend(
+            AdvancedPermissionBroker permissionBroker,
+            IScreenCaptureBackend inner,
+            TimeSpan? leaseDuration = null,
+            IAutomationRiskPolicy? riskPolicy = null)
+        {
+            _permissionBroker = permissionBroker ?? throw new ArgumentNullException(nameof(permissionBroker));
+            _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+            _riskPolicy = riskPolicy ?? new ConservativeAutomationRiskPolicy();
+            _leaseDuration = leaseDuration ?? TimeSpan.FromMinutes(5);
+            if (_leaseDuration <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(leaseDuration), "The capability lease duration must be positive.");
+            }
+        }
+
+        public async Task<CapturedScreenFrame> CaptureAsync(
+            ScreenCaptureRequest request,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            if (request.Target.Kind != ScreenCaptureTargetKind.Window
+                || request.Target.Hwnd is not nint hwnd
+                || hwnd == nint.Zero)
+            {
+                return new CapturedScreenFrame(
+                    ScreenCaptureStatus.UnsupportedTarget,
+                    null,
+                    null,
+                    "Screen Capture V1 supports only a non-zero window HWND target.");
+            }
+
+            var scope = CreateWindowScope(hwnd, request.Target.ProcessId);
+            var automationRequest = new AutomationRequest(
+                CapabilityType.ScreenCapture,
+                scope,
+                AutomationOperation.Capture,
+                $"hwnd:{hwnd.ToInt64()}",
+                Payload: null,
+                Context: request.Context ?? new AutomationContext(TargetProcessId: request.Target.ProcessId));
+            if (!_riskPolicy.IsAllowed(automationRequest, out var riskReason))
+            {
+                return new CapturedScreenFrame(ScreenCaptureStatus.Denied, null, null, riskReason);
+            }
+
+            CapabilityLeaseHandle? leaseHandle;
+            try
+            {
+                leaseHandle = await _permissionBroker.RequestCapabilityLeaseAsync(
+                    automationRequest.RequiredCapability,
+                    automationRequest.Scope,
+                    _leaseDuration,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return new CapturedScreenFrame(ScreenCaptureStatus.Cancelled, null, null, "Screen capture was cancelled before capability approval completed.");
+            }
+
+            if (leaseHandle is null)
+            {
+                return new CapturedScreenFrame(ScreenCaptureStatus.Denied, null, null, "Screen capture capability denied by policy or user.");
+            }
+
+            using (leaseHandle)
+            using (var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                leaseHandle.RevocationToken))
+            {
+                try
+                {
+                    return await _inner.CaptureAsync(request, linkedCancellation.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return new CapturedScreenFrame(ScreenCaptureStatus.Cancelled, null, null, "Screen capture was cancelled or its capability lease was revoked.");
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_inner is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        }
+
+        private static string CreateWindowScope(nint hwnd, int? processId)
+        {
+            return $"window:hwnd={hwnd.ToInt64()};pid={processId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown"}";
+        }
+    }
+
     public sealed class CapabilityGuardedMcpToolGateway : IMcpToolGateway
     {
         private readonly AdvancedPermissionBroker _permissionBroker;
