@@ -46,10 +46,10 @@
 - [x] V2.1: Add asynchronous IMissionEventSink boundary for persistence and telemetry
 - [x] V2.1: Expand scheduler and executor regression coverage
 - [x] V2.1: Run available core tests (36/36 passing)
-- [ ] V2.1: Confirm Windows quality-gate is green and document any remaining warnings
-- [ ] V2.1: Commit hardened milestone to GitHub
+- [x] V2.1: Confirm Windows quality-gate is green and document remaining non-fatal analyzer warnings
+- [x] V2.1: Commit hardened milestone to GitHub
 - [x] Fix App.xaml.cs DispatcherQueue namespace/reference for the WinUI Composition Root
 - [x] Fix AppHost.Initialize call to pass the UI DispatcherQueue without breaking DI startup
 - [x] Repair all whitespace formatting violations reported by dotnet format
-- [ ] Make the format gate deterministic on the solution with Windows-only WinUI projects (local per-project whitespace validation passes)
+- [x] Make the format gate deterministic on the solution with Windows-only WinUI projects (local and Windows CI per-project whitespace validation pass)
 - [x] Remove redundant System.Text.Json PackageReferences that trigger NU1510 during dotnet format
