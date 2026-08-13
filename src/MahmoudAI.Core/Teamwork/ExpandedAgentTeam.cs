@@ -51,7 +51,7 @@ namespace MahmoudAI.Core.Teamwork
         public async Task<bool> ExecuteConsensusTaskAsync(string missionObjective, CancellationToken ct)
         {
             _logger.LogInformation("Agent Team starting consensus workflow for objective: {Objective}", missionObjective);
-            
+
             // 1. Safety check
             _logger.LogInformation("[Safety Agent] Validating permissions and safety boundaries.");
             await Task.Delay(20, ct);

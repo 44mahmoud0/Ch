@@ -50,3 +50,5 @@
 - [ ] V2.1: Commit hardened milestone to GitHub
 - [x] Fix App.xaml.cs DispatcherQueue namespace/reference for the WinUI Composition Root
 - [x] Fix AppHost.Initialize call to pass the UI DispatcherQueue without breaking DI startup
+- [x] Repair all whitespace formatting violations reported by dotnet format
+- [ ] Make the format gate deterministic on the solution with Windows-only WinUI projects

@@ -36,7 +36,7 @@ namespace MahmoudAI.Core.Runtime
                         }
                     }
                 }
-                
+
                 throw new HttpRequestException($"Unsupported or unconfigured AI provider endpoint: {endpointUrl}");
             }
             catch (OperationCanceledException)

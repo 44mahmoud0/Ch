@@ -31,7 +31,7 @@ namespace MahmoudAI.Core.Runtime
 
                 double latency = sw.ElapsedMilliseconds;
                 int tps = (int)(response.Length / Math.Max(0.1, sw.Elapsed.TotalSeconds));
-                
+
                 _logger.LogInformation("Model {Model} benchmarked: {Latency}ms, {Tps} chars/sec", modelName, latency, tps);
                 return new BenchmarkResult(modelName, latency, tps, true);
             }

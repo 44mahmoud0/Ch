@@ -162,7 +162,7 @@ namespace MahmoudAI.Core.Engine
                                         {
                                             task.Status = TaskStatus.Running;
                                             _logger.LogInformation("Executing task {TaskId}: {TaskName} (Attempt {Attempt}/{MaxRetries})", task.Id, task.Name, attempt, task.MaxRetries + 1);
-                                            
+
                                             success = await task.Action(cts.Token);
                                             if (success)
                                             {
