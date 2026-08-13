@@ -61,6 +61,6 @@
 - [x] Acceleration: add provider, automation, MCP, speech, OCR, and observability adapter contracts without bypass paths
 - [ ] Acceleration: validate dependency licenses, versions, and Windows compatibility in the repository
 - [x] Acceleration: add regression and security tests for the new integration boundaries (42/42 passing)
-- [ ] Acceleration: update the Windows quality gate and documentation after integration validation (local non-WinUI verification passes; Windows CI pending)
-- [ ] Acceleration: commit the open-source integration milestone to GitHub
+- [x] Acceleration: update the Windows quality gate and documentation after integration validation (Windows CI run 31656476620 is green)
+- [x] Acceleration: commit the open-source integration milestone to GitHub (commits 2a2bd06 and 51075b8)
 - [x] Repair malformed MahmoudAI.Storage project GUID entries in MahmoudAI.sln so the App solution build includes Storage
