@@ -1,10 +1,14 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using System;
+using System.IO;
 using MahmoudAI.Core.Engine;
+using MahmoudAI.Core.Engine.TaskGraph;
 using MahmoudAI.Core.Persona;
 using MahmoudAI.Core.Runtime;
 using MahmoudAI.Core.Security;
+using MahmoudAI.Storage;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace MahmoudAI.App
 {
@@ -26,9 +30,39 @@ namespace MahmoudAI.App
                     services.AddSingleton<IWinUiContext>(new WinUiContext(dispatcherQueue));
                     services.AddSingleton<IUserApprovalService, WinUIUserApprovalService>();
                     services.AddSingleton<AdvancedPermissionBroker>();
-                    services.AddSingleton<TaskGraphEngine>();
                     services.AddSingleton<PersonaStateMachine>();
                     services.AddSingleton<AiProviderClient>();
+
+                    services.AddSingleton<MissionEventHub>();
+                    services.AddSingleton<SqliteMissionStore>(serviceProvider =>
+                    {
+                        var dataDirectory = Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "MahmoudAI");
+                        Directory.CreateDirectory(dataDirectory);
+                        var databasePath = Path.Combine(dataDirectory, "mahmoud-ai.db");
+                        return new SqliteMissionStore(
+                            databasePath,
+                            serviceProvider.GetRequiredService<ILogger<SqliteMissionStore>>());
+                    });
+                    services.AddSingleton<IMissionEventSink>(serviceProvider =>
+                    {
+                        var durableSink = new SqliteMissionEventSink(
+                            serviceProvider.GetRequiredService<SqliteMissionStore>());
+                        var eventHub = serviceProvider.GetRequiredService<MissionEventHub>();
+                        return new CompositeMissionEventSink(new IMissionEventSink[]
+                        {
+                            durableSink,
+                            eventHub
+                        });
+                    });
+                    services.AddSingleton<TaskExecutor>();
+                    services.AddSingleton<ITaskExecutor>(serviceProvider =>
+                        serviceProvider.GetRequiredService<TaskExecutor>());
+                    services.AddSingleton<TaskGraphScheduler>();
+
+                    // Retained for legacy callers while the WinUI mission path uses TaskGraph V2.
+                    services.AddSingleton<TaskGraphEngine>();
                     services.AddSingleton<MainWindow>();
                 })
                 .Build();

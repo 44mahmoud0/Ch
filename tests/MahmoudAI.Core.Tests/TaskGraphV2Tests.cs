@@ -16,7 +16,7 @@ namespace MahmoudAI.Core.Tests
         public async Task Scheduler_ShouldExecuteIndependentTasksInParallel_AndRespectDependencies()
         {
             var events = new ConcurrentQueue<MissionTaskEvent>();
-            var scheduler = new TaskGraphScheduler(null, evt => events.Enqueue(evt));
+            var scheduler = new TaskGraphScheduler(null, new DelegateMissionEventSink(evt => events.Enqueue(evt)));
             var definitions = new List<MissionTaskDefinition>
             {
                 NewTask("t1", async ct => { await Task.Delay(20, ct); return true; }),
@@ -50,7 +50,7 @@ namespace MahmoudAI.Core.Tests
         public async Task Scheduler_ShouldPropagateDependencyFailureAsSkipped_AndEmitSkipped()
         {
             var events = new ConcurrentQueue<MissionTaskEvent>();
-            var scheduler = new TaskGraphScheduler(null, evt => events.Enqueue(evt));
+            var scheduler = new TaskGraphScheduler(null, new DelegateMissionEventSink(evt => events.Enqueue(evt)));
             var definitions = new[]
             {
                 NewTask("t1", _ => Task.FromResult(false)),

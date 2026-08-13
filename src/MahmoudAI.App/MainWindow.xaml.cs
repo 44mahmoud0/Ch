@@ -1,10 +1,15 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.Extensions.Logging;
+using Microsoft.UI.Xaml.Media;
+using MahmoudAI.Core.Engine.TaskGraph;
 using MahmoudAI.Core.Persona;
 using MahmoudAI.Core.Security;
 using MahmoudAI.Core.Runtime;
-using MahmoudAI.Core.Engine;
 
 namespace MahmoudAI.App
 {
@@ -12,29 +17,38 @@ namespace MahmoudAI.App
     {
         private readonly PersonaStateMachine _persona;
         private readonly AdvancedPermissionBroker _permissions;
-        private readonly TaskGraphEngine _taskGraph;
+        private readonly TaskGraphScheduler _taskGraph;
         private readonly AiProviderClient _aiClient;
+        private readonly MissionEventHub _eventHub;
+        private readonly IDisposable _missionEventSubscription;
         private CancellationTokenSource? _cts;
-
         private readonly ILogger<MainWindow> _logger;
-
         private readonly IWinUiContext _uiContext;
 
         public MainWindow(
             PersonaStateMachine persona,
             AdvancedPermissionBroker permissions,
-            TaskGraphEngine taskGraph,
+            TaskGraphScheduler taskGraph,
             AiProviderClient aiClient,
+            MissionEventHub eventHub,
             IWinUiContext uiContext,
             ILogger<MainWindow> logger)
         {
-            this.InitializeComponent();
+            InitializeComponent();
             _persona = persona;
             _permissions = permissions;
             _taskGraph = taskGraph;
             _aiClient = aiClient;
+            _eventHub = eventHub;
             _uiContext = uiContext;
             _logger = logger;
+
+            _missionEventSubscription = _eventHub.Subscribe(evt =>
+            {
+                AppendMissionOutput($"[TaskGraph] {evt.TaskId}: {evt.Type} (attempt {evt.Attempt})\n");
+                return ValueTask.CompletedTask;
+            });
+            Closed += (_, _) => _missionEventSubscription.Dispose();
 
             _logger.LogInformation("MainWindow initialized via Dependency Injection Composition Root.");
 
@@ -50,139 +64,150 @@ namespace MahmoudAI.App
             MissionOutputBox.Text = "[System] Mahmoud AI Desktop initialized successfully.\n[Security] AdvancedPermissionBroker and WorkspaceIsolation active.\n";
         }
 
-        private async void RunMissionButton_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+        private async void RunMissionButton_Click(object sender, RoutedEventArgs e)
         {
             string goal = MissionInputBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(goal)) return;
+            if (string.IsNullOrWhiteSpace(goal))
+            {
+                return;
+            }
 
             if (_cts is not null)
             {
-                MissionOutputBox.Text += "\n[System] A mission is already running.\n";
+                AppendMissionOutput("\n[System] A mission is already running.\n");
                 return;
             }
 
             _cts = new CancellationTokenSource();
+            var missionCancellation = _cts;
+            var missionId = Guid.NewGuid().ToString("N");
             RunMissionButton.IsEnabled = false;
 
-            MissionOutputBox.Text += $"\n[Mission Start] Goal: {goal}\n";
-            StatusTextBlock.Text = "Status: Mission Running (TaskGraph)...";
-            StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Blue);
-
-            void AppendLog(string message)
-            {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    MissionOutputBox.Text += message;
-                });
-            }
+            AppendMissionOutput($"\n[Mission Start] Mission {missionId} - Goal: {goal}\n");
+            StatusTextBlock.Text = "Status: Mission Running (TaskGraph V2)...";
+            StatusTextBlock.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Blue);
 
             try
             {
-                var tasks = new List<MissionTask>
+                var definitions = new List<MissionTaskDefinition>
                 {
-                    new MissionTask
-                    {
-                        Id = "task-plan",
-                        Name = "Deconstruct Mission",
-                        Action = async ct =>
+                    new(
+                        "task-plan",
+                        "Deconstruct Mission",
+                        Array.Empty<string>(),
+                        async cancellationToken =>
                         {
-                            await Task.Delay(200, ct);
-                            AppendLog("[Planner Agent] Deconstructed goal into subtasks.\n");
+                            await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+                            AppendMissionOutput("[Planner Agent] Deconstructed goal into subtasks.\n");
                             return true;
-                        }
-                    },
-                    new MissionTask
-                    {
-                        Id = "task-exec",
-                        Name = "Execute Mission Steps",
-                        Dependencies = { "task-plan" },
-                        Action = async ct =>
+                        },
+                        TimeSpan.FromSeconds(10),
+                        new RetryPolicy(1, TimeSpan.Zero, 1, TimeSpan.Zero, false)),
+                    new(
+                        "task-exec",
+                        "Execute Mission Steps",
+                        new[] { "task-plan" },
+                        async cancellationToken =>
                         {
-                            await Task.Delay(300, ct);
-                            bool allowed = await _permissions.RequestCapabilityAsync(CapabilityType.FilesWrite, "mission-workspace", TimeSpan.FromMinutes(5), ct);
-                            if (allowed)
+                            await Task.Delay(300, cancellationToken).ConfigureAwait(false);
+                            bool allowed = await _permissions.RequestCapabilityAsync(
+                                CapabilityType.FilesWrite,
+                                "mission-workspace",
+                                TimeSpan.FromMinutes(5),
+                                cancellationToken).ConfigureAwait(false);
+                            if (!allowed)
                             {
-                                AppendLog("[Coding/Tool Agent] Capability granted. Executing mission steps securely.\n");
-                                return true;
-                            }
-                            else
-                            {
-                                AppendLog("[Safety Agent] Capability denied by user or security policy.\n");
+                                AppendMissionOutput("[Safety Agent] Capability denied by user or security policy.\n");
                                 return false;
                             }
-                        }
-                    }
+
+                            AppendMissionOutput("[Coding/Tool Agent] Capability granted. Executing mission steps securely.\n");
+                            return true;
+                        },
+                        TimeSpan.FromSeconds(30),
+                        new RetryPolicy(1, TimeSpan.Zero, 1, TimeSpan.Zero, false))
                 };
 
-                bool success = await _taskGraph.ExecuteGraphAsync(tasks, _cts.Token);
+                var graphResult = await _taskGraph.ExecuteGraphAsync(
+                    missionId,
+                    definitions,
+                    maxConcurrency: 2,
+                    missionCancellation.Token).ConfigureAwait(false);
+                bool success = graphResult.Status == GraphExecutionStatus.Completed;
 
                 if (success)
                 {
-                    AppendLog("[Mission Complete] All task graph nodes executed successfully.\n");
+                    AppendMissionOutput("[Mission Complete] All TaskGraph V2 nodes executed successfully.\n");
                     DispatcherQueue.TryEnqueue(() =>
                     {
                         StatusTextBlock.Text = "Status: Idle (Secure)";
-                        StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
+                        StatusTextBlock.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Green);
                     });
                 }
                 else
                 {
-                    AppendLog("[Mission Failed/Cancelled] Task graph execution did not complete successfully.\n");
+                    AppendMissionOutput($"[Mission {graphResult.Status}] TaskGraph V2 returned a terminal non-success status.\n");
                     DispatcherQueue.TryEnqueue(() =>
                     {
-                        StatusTextBlock.Text = "Status: Failed / Cancelled";
-                        StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
+                        StatusTextBlock.Text = graphResult.Status == GraphExecutionStatus.Cancelled
+                            ? "Status: Cancelled / Emergency Stop"
+                            : "Status: Failed / Safe Mode";
+                        StatusTextBlock.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Red);
                     });
                 }
             }
             catch (OperationCanceledException)
             {
-                AppendLog("\n[Mission Cancelled] Emergency Stop or user cancellation aborted active mission.\n");
+                AppendMissionOutput("\n[Mission Cancelled] Emergency Stop or user cancellation aborted the active mission.\n");
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     StatusTextBlock.Text = "Status: Cancelled / Emergency Stop";
-                    StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkRed);
+                    StatusTextBlock.Foreground = new SolidColorBrush(Microsoft.UI.Colors.DarkRed);
                 });
             }
             catch (Exception ex)
             {
-                AppendLog($"\n[Mission Error] {ex.Message}\n");
+                _logger.LogError(ex, "Mission {MissionId} failed unexpectedly.", missionId);
+                AppendMissionOutput($"\n[Mission Error] {ex.Message}\n");
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     StatusTextBlock.Text = "Status: Error";
-                    StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
+                    StatusTextBlock.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Red);
                 });
             }
             finally
             {
-                _cts?.Dispose();
+                missionCancellation.Dispose();
                 _cts = null;
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    RunMissionButton.IsEnabled = true;
-                });
+                DispatcherQueue.TryEnqueue(() => RunMissionButton.IsEnabled = true);
             }
         }
 
-        private void EmergencyStopButton_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+        private void EmergencyStopButton_Click(object sender, RoutedEventArgs e)
         {
             _permissions.TriggerEmergencyStop();
             try
             {
                 _cts?.Cancel();
             }
-            catch
+            catch (ObjectDisposedException)
             {
-                // Ignore if already disposed
+                // The mission completed concurrently with the emergency-stop click.
             }
+
             StatusTextBlock.Text = "Status: EMERGENCY STOP / SAFE MODE";
-            StatusTextBlock.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkRed);
+            StatusTextBlock.Foreground = new SolidColorBrush(Microsoft.UI.Colors.DarkRed);
             MissionOutputBox.Text += "\n[CRITICAL] Emergency Stop triggered! All leases revoked, safe mode active, active tasks cancelled.\n";
         }
 
-        private async Task<bool> ShowPermissionDialogAsync(CapabilityType capability, string scope, CancellationToken ct)
+        private void AppendMissionOutput(string message)
         {
-            ct.ThrowIfCancellationRequested();
+            DispatcherQueue.TryEnqueue(() => MissionOutputBox.Text += message);
+        }
+
+        private async Task<bool> ShowPermissionDialogAsync(CapabilityType capability, string scope, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
 
             var dialog = new ContentDialog
             {
@@ -193,7 +218,7 @@ namespace MahmoudAI.App
                 XamlRoot = Content.XamlRoot
             };
 
-            using CancellationTokenRegistration registration = ct.Register(() =>
+            using CancellationTokenRegistration registration = cancellationToken.Register(() =>
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
@@ -203,14 +228,13 @@ namespace MahmoudAI.App
                     }
                     catch
                     {
-                        // Dialog may already be closed
+                        // Dialog may already be closed.
                     }
                 });
             });
 
             ContentDialogResult result = await dialog.ShowAsync();
-            ct.ThrowIfCancellationRequested();
-
+            cancellationToken.ThrowIfCancellationRequested();
             return result == ContentDialogResult.Primary;
         }
     }

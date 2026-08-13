@@ -17,11 +17,6 @@ namespace MahmoudAI.Core.Engine.TaskGraph
             _executor = executor ?? new TaskExecutor(_eventSink);
         }
 
-        public TaskGraphScheduler(ITaskExecutor? executor, Action<MissionTaskEvent>? eventListener)
-            : this(executor, eventListener is null ? null : new DelegateMissionEventSink(eventListener))
-        {
-        }
-
         public async Task<GraphExecutionResult> ExecuteGraphAsync(
             string missionId,
             IEnumerable<MissionTaskDefinition> taskDefinitions,

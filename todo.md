@@ -53,3 +53,13 @@
 - [x] Repair all whitespace formatting violations reported by dotnet format
 - [x] Make the format gate deterministic on the solution with Windows-only WinUI projects (local and Windows CI per-project whitespace validation pass)
 - [x] Remove redundant System.Text.Json PackageReferences that trigger NU1510 during dotnet format
+
+- [x] Acceleration: preserve TaskGraph V2 and Capability Broker as the only side-effect authority
+- [x] Acceleration: document third-party integration boundaries and threat-model constraints
+- [x] Acceleration: add a composite asynchronous mission event sink for durable storage and telemetry
+- [x] Acceleration: connect mission events to SQLite with idempotent persistence semantics
+- [x] Acceleration: add provider, automation, MCP, speech, OCR, and observability adapter contracts without bypass paths
+- [ ] Acceleration: validate dependency licenses, versions, and Windows compatibility in the repository
+- [x] Acceleration: add regression and security tests for the new integration boundaries (42/42 passing)
+- [ ] Acceleration: update the Windows quality gate and documentation after integration validation (local non-WinUI verification passes; Windows CI pending)
+- [ ] Acceleration: commit the open-source integration milestone to GitHub
