@@ -51,4 +51,5 @@
 - [x] Fix App.xaml.cs DispatcherQueue namespace/reference for the WinUI Composition Root
 - [x] Fix AppHost.Initialize call to pass the UI DispatcherQueue without breaking DI startup
 - [x] Repair all whitespace formatting violations reported by dotnet format
-- [ ] Make the format gate deterministic on the solution with Windows-only WinUI projects
+- [ ] Make the format gate deterministic on the solution with Windows-only WinUI projects (local per-project whitespace validation passes)
+- [x] Remove redundant System.Text.Json PackageReferences that trigger NU1510 during dotnet format
