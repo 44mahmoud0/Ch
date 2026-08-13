@@ -50,10 +50,10 @@ namespace MahmoudAI.Core.Automation
     public sealed record ScreenObservation(
         nint Hwnd,
         int ProcessId,
-        DateTimeOffset Timestamp,
-        RedactedScreenFrame Frame,
+        DateTimeOffset CapturedAt,
+        ScreenFrameMetadata FrameMetadata,
+        FrameCoordinateTransform Transform,
         OcrResult OcrResult,
         IReadOnlyList<UiaElementSnapshot> UiaElements,
-        FrameCoordinateTransform Transform,
         TimeSpan MaxFreshnessWindow);
 }

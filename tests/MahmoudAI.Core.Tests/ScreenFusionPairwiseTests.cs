@@ -15,7 +15,6 @@ namespace MahmoudAI.Core.Tests
             var now = DateTimeOffset.UtcNow;
 
             var metadata = new ScreenFrameMetadata("f_pair", now, 200, 200, 800, 1.0f, 1.0f, 0, 0, 123, (nint)456);
-            using var frame = new RedactedScreenFrame(ScreenCaptureStatus.Captured, metadata, new byte[800], 0);
 
             // Line 1 contains text "Save" but is far away from the button
             var lineFarSave = new OcrLine("Save", Array.Empty<OcrWord>(), new ScreenPolygon(
@@ -44,7 +43,7 @@ namespace MahmoudAI.Core.Tests
                 OutputToSourceScaleY: 1.0,
                 CoordinateSpace: CoordinateSpace.AbsoluteDesktopPhysicalPixels);
 
-            var observation = new ScreenObservation((nint)456, 123, now, frame, ocrResult, uiaElements, transform, TimeSpan.FromSeconds(5));
+            var observation = new ScreenObservation((nint)456, 123, now, metadata, transform, ocrResult, uiaElements, TimeSpan.FromSeconds(5));
 
             var result = engine.Fuse(observation, "Save");
 

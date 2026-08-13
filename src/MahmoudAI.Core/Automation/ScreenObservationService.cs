@@ -16,7 +16,7 @@ namespace MahmoudAI.Core.Automation
     }
 
     public sealed record ScreenObservationResult(
-        ScreenObservation Observation,
+        ScreenObservation? Observation,
         ScreenFusionResult FusionResult);
 
     public sealed class ScreenObservationService : IScreenObservationService
@@ -61,14 +61,19 @@ namespace MahmoudAI.Core.Automation
             using var capturedFrame = await _captureBackend.CaptureAsync(captureRequest, cancellationToken).ConfigureAwait(false);
             if (!capturedFrame.Succeeded || capturedFrame.Metadata is null)
             {
-                var failedOcr = new OcrResult(OcrStatus.ProviderError, "None", ocrRequest.Language.ToString(), Array.Empty<OcrLine>(), string.Empty, capturedFrame.Error ?? "Capture failed.");
-                var failedTransform = new FrameCoordinateTransform(new ScreenRect(0, 0, 800, 600), new ScreenRect(0, 0, 100, 100), 100, 100, 1.0, 1.0, CoordinateSpace.AbsoluteDesktopPhysicalPixels);
-                var emptyObs = new ScreenObservation(captureRequest.Target.Hwnd ?? nint.Zero, captureRequest.Target.ProcessId ?? 0, DateTimeOffset.UtcNow, new RedactedScreenFrame(capturedFrame.Status, capturedFrame.Metadata, capturedFrame.PixelBuffer, 0, capturedFrame.Transform, capturedFrame.Error), failedOcr, Array.Empty<UiaElementSnapshot>(), failedTransform, TimeSpan.FromSeconds(5));
                 var failedFusion = new ScreenFusionResult(FusionStatus.ProviderError, Array.Empty<FusionCandidate>(), null, capturedFrame.Error ?? "Capture failed.");
-                return new ScreenObservationResult(emptyObs, failedFusion);
+                return new ScreenObservationResult(null, failedFusion);
             }
 
-            // 2. Privacy Filter / Redaction
+            // Verify transform is present and authoritative
+            if (capturedFrame.Transform is null)
+            {
+                _logger.LogWarning("Captured frame is missing authoritative transform.");
+                var transformFailure = new ScreenFusionResult(FusionStatus.InvalidCoordinateTransform, Array.Empty<FusionCandidate>(), null, "Captured frame is missing authoritative coordinate transform.");
+                return new ScreenObservationResult(null, transformFailure);
+            }
+
+            // 2. Privacy Filter / Redaction (Pixel buffers are scoped and disposed securely here)
             using var redactedFrame = await _privacyFilter.RedactAsync(capturedFrame, privacyContext, cancellationToken).ConfigureAwait(false);
 
             // 3. OCR Pipeline
@@ -83,28 +88,18 @@ namespace MahmoudAI.Core.Automation
             var uiaResult = await _uiaAutomation.QueryAsync(uiaQuery, cancellationToken).ConfigureAwait(false);
             var elements = uiaResult.Candidates;
 
-            // 5. Authoritative Transform
-            var transform = redactedFrame.Transform ?? new FrameCoordinateTransform(
-                new ScreenRect(capturedFrame.Metadata.ScreenOriginX, capturedFrame.Metadata.ScreenOriginY, capturedFrame.Metadata.PixelWidth, capturedFrame.Metadata.PixelHeight),
-                new ScreenRect(0, 0, capturedFrame.Metadata.PixelWidth, capturedFrame.Metadata.PixelHeight),
-                capturedFrame.Metadata.PixelWidth,
-                capturedFrame.Metadata.PixelHeight,
-                1.0,
-                1.0,
-                CoordinateSpace.AbsoluteDesktopPhysicalPixels);
-
-            // 6. Screen Observation Construction
+            // 5. Screen Observation Construction (Pixel-free immutable semantic snapshot)
             var observation = new ScreenObservation(
                 hwnd,
                 capturedFrame.Metadata.SourceProcessId,
                 capturedFrame.Metadata.CapturedAt,
-                redactedFrame,
+                capturedFrame.Metadata,
+                capturedFrame.Transform,
                 ocrResult,
                 elements,
-                transform,
                 TimeSpan.FromSeconds(5));
 
-            // 7. Fusion
+            // 6. Fusion
             var fusionResult = _fusionEngine.Fuse(observation, targetQuery);
 
             return new ScreenObservationResult(observation, fusionResult);

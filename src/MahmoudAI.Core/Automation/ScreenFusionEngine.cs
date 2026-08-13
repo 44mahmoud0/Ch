@@ -21,15 +21,15 @@ namespace MahmoudAI.Core.Automation
             ArgumentException.ThrowIfNullOrWhiteSpace(targetQuery);
 
             var now = DateTimeOffset.UtcNow;
-            if (now - observation.Timestamp > observation.MaxFreshnessWindow)
+            if (now - observation.CapturedAt > observation.MaxFreshnessWindow)
             {
-                _logger.LogWarning("Screen observation is stale (age: {Age}s). Rejecting fusion.", (now - observation.Timestamp).TotalSeconds);
+                _logger.LogWarning("Screen observation is stale (age: {Age}s). Rejecting fusion.", (now - observation.CapturedAt).TotalSeconds);
                 return new ScreenFusionResult(FusionStatus.StaleObservation, Array.Empty<FusionCandidate>(), null, "Observation exceeds freshness window.");
             }
 
-            if (!observation.Frame.Succeeded || observation.OcrResult.Status != OcrStatus.Success)
+            if (observation.OcrResult.Status != OcrStatus.Success)
             {
-                return new ScreenFusionResult(FusionStatus.ProviderError, Array.Empty<FusionCandidate>(), null, "Observation frame or OCR result failed.");
+                return new ScreenFusionResult(FusionStatus.ProviderError, Array.Empty<FusionCandidate>(), null, "Observation OCR result failed.");
             }
 
             // Identity & Process Mismatch guard
@@ -151,13 +151,13 @@ namespace MahmoudAI.Core.Automation
                         ControlType: element.ControlType,
                         ElementName: elementText,
                         ElementBounds: elementBounds,
-                        MatchedOcrLine: bestPairCorroborated ? bestPairOcrLine : null, // Only expose line if text corroborated
+                        MatchedOcrLine: bestPairCorroborated ? bestPairOcrLine : null,
                         MatchedText: bestPairMatchedText,
                         ScoreBreakdown: breakdown,
                         SourceHwnd: observation.Hwnd,
                         SourceProcessId: observation.ProcessId,
-                        FrameId: observation.Frame.Metadata?.FrameId ?? string.Empty,
-                        CapturedAt: observation.Timestamp,
+                        FrameId: observation.FrameMetadata.FrameId,
+                        CapturedAt: observation.CapturedAt,
                         OcrEngine: observation.OcrResult.Engine,
                         RecognizedLanguage: observation.OcrResult.RecognizedLanguage,
                         IsAmbiguous: false,

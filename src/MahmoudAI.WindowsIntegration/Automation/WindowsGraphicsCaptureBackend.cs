@@ -172,7 +172,15 @@ namespace MahmoudAI.WindowsIntegration.Automation
                     originY + cropY,
                     expectedProcessId,
                     hwnd);
-                return new CapturedScreenFrame(ScreenCaptureStatus.Captured, metadata, pixels);
+
+                var actualRegion = new ScreenRect(cropX, cropY, cropWidth, cropHeight);
+                var transform = WindowsGraphicsCaptureBackendTransformExtensions.CreateAuthoritativeTransform(
+                    metadata,
+                    sourceWidth,
+                    sourceHeight,
+                    actualRegion);
+
+                return new CapturedScreenFrame(ScreenCaptureStatus.Captured, metadata, pixels, transform);
             }
         }
 
