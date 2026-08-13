@@ -64,3 +64,9 @@
 - [x] Acceleration: update the Windows quality gate and documentation after integration validation (Windows CI run 31656476620 is green)
 - [x] Acceleration: commit the open-source integration milestone to GitHub (commits 2a2bd06 and 51075b8)
 - [x] Repair malformed MahmoudAI.Storage project GUID entries in MahmoudAI.sln so the App solution build includes Storage
+
+- [x] Windows automation: replace simulation with real Win32 window targeting, activation, pointer, and Unicode keyboard input
+- [x] Windows automation: wire the real backend through CapabilityGuardedAutomationBackend and DI
+- [x] Windows automation: add cancellation, denial, lease expiry, revocation, and Emergency Stop regression coverage (46/46 core tests passing)
+- [x] Windows automation: add Windows smoke-test strategy and document native interop limitations
+- [x] Windows automation: run the Windows Quality Gate and preserve a clean GitHub milestone

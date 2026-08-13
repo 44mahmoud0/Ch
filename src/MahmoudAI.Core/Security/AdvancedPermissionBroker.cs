@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace MahmoudAI.Core.Security
@@ -27,12 +29,32 @@ namespace MahmoudAI.Core.Security
         string GrantedBy
     );
 
+    public sealed class CapabilityLeaseHandle : IDisposable
+    {
+        private readonly CancellationTokenSource _revocationSource;
+
+        internal CapabilityLeaseHandle(CapabilityLease lease, CancellationTokenSource revocationSource)
+        {
+            Lease = lease;
+            _revocationSource = revocationSource;
+        }
+
+        public CapabilityLease Lease { get; }
+        public CancellationToken RevocationToken => _revocationSource.Token;
+
+        public void Dispose()
+        {
+            // A handle observes revocation; it does not revoke a shared lease on disposal.
+        }
+    }
+
     public class AdvancedPermissionBroker
     {
         private readonly ILogger<AdvancedPermissionBroker> _logger;
         private readonly ConcurrentDictionary<string, CapabilityLease> _activeLeases = new();
-        public bool EmergencyStopTriggered { get; private set; } = false;
-        public bool SafeModeActive { get; private set; } = false;
+        private readonly ConcurrentDictionary<string, CancellationTokenSource> _leaseRevocations = new();
+        public bool EmergencyStopTriggered { get; private set; }
+        public bool SafeModeActive { get; private set; }
 
         private readonly IUserApprovalService? _approvalService;
 
@@ -40,7 +62,7 @@ namespace MahmoudAI.Core.Security
 
         public AdvancedPermissionBroker(ILogger<AdvancedPermissionBroker> logger, IUserApprovalService? approvalService = null)
         {
-            _logger = logger;
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _approvalService = approvalService;
         }
 
@@ -48,7 +70,7 @@ namespace MahmoudAI.Core.Security
         {
             EmergencyStopTriggered = true;
             SafeModeActive = true;
-            _activeLeases.Clear();
+            RevokeAll();
             _logger.LogCritical("EMERGENCY STOP TRIGGERED! All capability leases revoked. Safe mode active.");
         }
 
@@ -62,7 +84,7 @@ namespace MahmoudAI.Core.Security
         {
             EmergencyStopTriggered = false;
             SafeModeActive = false;
-            _activeLeases.Clear();
+            RevokeAll();
             _logger.LogWarning("Emergency stop reset by explicit user action.");
         }
 
@@ -71,50 +93,130 @@ namespace MahmoudAI.Core.Security
             return RequestCapabilityAsync(capability, scope, duration, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        public async Task<bool> RequestCapabilityAsync(CapabilityType capability, string scope, TimeSpan duration, CancellationToken ct)
+        public async Task<bool> RequestCapabilityAsync(
+            CapabilityType capability,
+            string scope,
+            TimeSpan duration,
+            CancellationToken cancellationToken)
         {
-            ct.ThrowIfCancellationRequested();
+            var handle = await RequestCapabilityLeaseAsync(capability, scope, duration, cancellationToken).ConfigureAwait(false);
+            handle?.Dispose();
+            return handle is not null;
+        }
 
+        public async Task<CapabilityLeaseHandle?> RequestCapabilityLeaseAsync(
+            CapabilityType capability,
+            string scope,
+            TimeSpan duration,
+            CancellationToken cancellationToken)
+        {
+            if (duration <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(duration), duration, "Capability lease duration must be positive.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
             if (EmergencyStopTriggered || SafeModeActive)
             {
                 _logger.LogWarning("Capability {Capability} denied because SafeMode/EmergencyStop is active.", capability);
-                return false;
+                return null;
             }
 
-            DateTime now = DateTime.UtcNow;
-
-            foreach (var pair in _activeLeases)
-            {
-                if (pair.Value.ExpiresAt <= now)
-                {
-                    _activeLeases.TryRemove(pair.Key, out _);
-                }
-            }
+            var now = DateTime.UtcNow;
+            RemoveExpiredLeases(now);
 
             foreach (var lease in _activeLeases.Values)
             {
-                if (lease.Capability == capability && lease.ExpiresAt > now && ScopeMatches(lease.Scope, scope))
+                if (lease.Capability == capability && lease.ExpiresAt > now && ScopeMatches(lease.Scope, scope)
+                    && _leaseRevocations.TryGetValue(lease.LeaseId, out var existingRevocation))
                 {
-                    return true;
+                    return new CapabilityLeaseHandle(lease, existingRevocation);
                 }
             }
 
-            bool approved;
+            var approved = await RequestApprovalAsync(capability, scope, cancellationToken).ConfigureAwait(false);
+            if (!approved)
+            {
+                return null;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (EmergencyStopTriggered || SafeModeActive)
+            {
+                return null;
+            }
+
+            var newLease = new CapabilityLease(
+                Guid.NewGuid().ToString("N"),
+                capability,
+                scope,
+                now,
+                now.Add(duration),
+                "UserApproved");
+            var revocationSource = new CancellationTokenSource();
+            revocationSource.CancelAfter(duration);
+            _activeLeases[newLease.LeaseId] = newLease;
+            _leaseRevocations[newLease.LeaseId] = revocationSource;
+            _logger.LogInformation(
+                "Granted capability lease {LeaseId} for {Capability} on scope {Scope}",
+                newLease.LeaseId,
+                capability,
+                scope);
+            return new CapabilityLeaseHandle(newLease, revocationSource);
+        }
+
+        public bool RevokeLease(string leaseId)
+        {
+            var removed = _activeLeases.TryRemove(leaseId, out _);
+            if (_leaseRevocations.TryRemove(leaseId, out var revocationSource))
+            {
+                revocationSource.Cancel();
+                revocationSource.Dispose();
+                removed = true;
+            }
+
+            if (removed)
+            {
+                _logger.LogInformation("Capability lease {LeaseId} revoked.", leaseId);
+            }
+
+            return removed;
+        }
+
+        public void RevokeAll()
+        {
+            foreach (var leaseId in _activeLeases.Keys)
+            {
+                RevokeLease(leaseId);
+            }
+
+            foreach (var leaseId in _leaseRevocations.Keys)
+            {
+                RevokeLease(leaseId);
+            }
+
+            _logger.LogInformation("All capability leases manually revoked.");
+        }
+
+        private async Task<bool> RequestApprovalAsync(
+            CapabilityType capability,
+            string scope,
+            CancellationToken cancellationToken)
+        {
             try
             {
-                if (_approvalService != null)
+                if (_approvalService is not null)
                 {
-                    approved = await _approvalService.RequestApprovalAsync(capability, scope, ct);
+                    return await _approvalService.RequestApprovalAsync(capability, scope, cancellationToken).ConfigureAwait(false);
                 }
-                else if (ApprovalDelegate != null)
+
+                if (ApprovalDelegate is not null)
                 {
-                    approved = await ApprovalDelegate(capability, scope, ct);
+                    return await ApprovalDelegate(capability, scope, cancellationToken).ConfigureAwait(false);
                 }
-                else
-                {
-                    _logger.LogWarning("No approval provider configured.");
-                    return false;
-                }
+
+                _logger.LogWarning("No approval provider configured.");
+                return false;
             }
             catch (OperationCanceledException)
             {
@@ -125,34 +227,22 @@ namespace MahmoudAI.Core.Security
                 _logger.LogError(ex, "Approval failed for {Capability}.", capability);
                 return false;
             }
+        }
 
-            if (!approved) return false;
-
-            ct.ThrowIfCancellationRequested();
-
-            var newLease = new CapabilityLease(
-                Guid.NewGuid().ToString("N"),
-                capability,
-                scope,
-                now,
-                now.Add(duration),
-                "UserApproved"
-            );
-
-            _activeLeases[newLease.LeaseId] = newLease;
-            _logger.LogInformation("Granted capability lease {LeaseId} for {Capability} on scope {Scope}", newLease.LeaseId, capability, scope);
-            return true;
+        private void RemoveExpiredLeases(DateTime now)
+        {
+            foreach (var pair in _activeLeases)
+            {
+                if (pair.Value.ExpiresAt <= now)
+                {
+                    RevokeLease(pair.Key);
+                }
+            }
         }
 
         private static bool ScopeMatches(string grantedScope, string requestedScope)
         {
             return grantedScope == "*" || grantedScope.Equals(requestedScope, StringComparison.OrdinalIgnoreCase);
-        }
-
-        public void RevokeAll()
-        {
-            _activeLeases.Clear();
-            _logger.LogInformation("All capability leases manually revoked.");
         }
     }
 }

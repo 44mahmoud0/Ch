@@ -31,17 +31,20 @@ namespace MahmoudAI.Core.Integration
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(request);
-            var granted = await _permissionBroker.RequestCapabilityAsync(
+            var lease = await _permissionBroker.RequestCapabilityLeaseAsync(
                 request.RequiredCapability,
                 request.Scope,
                 _leaseDuration,
                 cancellationToken).ConfigureAwait(false);
-            if (!granted)
+            if (lease is null)
             {
                 return new AutomationResult(false, null, "Capability denied by policy or user.");
             }
 
-            return await _inner.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
+            using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                lease.RevocationToken);
+            return await _inner.ExecuteAsync(request, linkedCancellation.Token).ConfigureAwait(false);
         }
     }
 
@@ -76,17 +79,20 @@ namespace MahmoudAI.Core.Integration
         {
             ArgumentNullException.ThrowIfNull(request);
             ArgumentNullException.ThrowIfNull(request.Tool);
-            var granted = await _permissionBroker.RequestCapabilityAsync(
+            var lease = await _permissionBroker.RequestCapabilityLeaseAsync(
                 CapabilityType.PluginExecution,
                 request.Tool.RequiredScope,
                 _leaseDuration,
                 cancellationToken).ConfigureAwait(false);
-            if (!granted)
+            if (lease is null)
             {
                 return new McpToolCallResult(false, "{}", "PluginExecution capability denied by policy or user.");
             }
 
-            return await _inner.CallToolAsync(request, cancellationToken).ConfigureAwait(false);
+            using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                lease.RevocationToken);
+            return await _inner.CallToolAsync(request, linkedCancellation.Token).ConfigureAwait(false);
         }
     }
 }

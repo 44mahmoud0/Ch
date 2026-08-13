@@ -1,51 +1,60 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using MahmoudAI.Core.Security;
+using MahmoudAI.Core.Integration;
 using Microsoft.Extensions.Logging;
 
 namespace MahmoudAI.Core.Automation
 {
     public class WindowsAutomationEngine
     {
-        private readonly AdvancedPermissionBroker _permissionBroker;
+        private readonly IWindowsAutomationBackend _backend;
         private readonly ILogger<WindowsAutomationEngine> _logger;
 
-        public WindowsAutomationEngine(AdvancedPermissionBroker permissionBroker, ILogger<WindowsAutomationEngine> logger)
+        public WindowsAutomationEngine(IWindowsAutomationBackend backend, ILogger<WindowsAutomationEngine> logger)
         {
-            _permissionBroker = permissionBroker;
-            _logger = logger;
+            _backend = backend ?? throw new ArgumentNullException(nameof(backend));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public Task<bool> ClickAtCoordinatesAsync(int x, int y, CancellationToken ct)
+        public async Task<bool> ClickAtCoordinatesAsync(int x, int y, CancellationToken cancellationToken)
         {
-            if (!_permissionBroker.RequestCapability(CapabilityType.MouseControl, $"desktop:click:{x},{y}", TimeSpan.FromMinutes(5)))
+            var request = new AutomationRequest(
+                MahmoudAI.Core.Security.CapabilityType.MouseControl,
+                $"desktop:click:{x},{y}",
+                AutomationOperation.Pointer,
+                $"{x},{y}");
+            var result = await _backend.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!result.Succeeded)
             {
-                _logger.LogWarning("Mouse click denied by AdvancedPermissionBroker.");
-                return Task.FromResult(false);
+                _logger.LogWarning("Mouse click failed: {Error}", result.Error);
             }
 
-            _logger.LogInformation("Simulating safe mouse click at ({X}, {Y})", x, y);
-            return Task.FromResult(true);
+            return result.Succeeded;
         }
 
-        public Task<bool> SendTextAsync(string text, CancellationToken ct)
+        public async Task<bool> SendTextAsync(string text, CancellationToken cancellationToken)
         {
-            if (!_permissionBroker.RequestCapability(CapabilityType.KeyboardControl, "desktop:keyboard", TimeSpan.FromMinutes(5)))
-            {
-                _logger.LogWarning("Keyboard input denied by AdvancedPermissionBroker.");
-                return Task.FromResult(false);
-            }
-
-            // Guard against injecting unauthorized commands during sensitive gameplay or restricted states
-            if (text.Contains("cheat", StringComparison.OrdinalIgnoreCase) || text.Contains("bypass", StringComparison.OrdinalIgnoreCase))
+            if (text.Contains("cheat", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("bypass", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Gaming safety policy triggered: blocked restricted input pattern.");
-                return Task.FromResult(false);
+                return false;
             }
 
-            _logger.LogInformation("Simulating secure keyboard input text length {Length}", text.Length);
-            return Task.FromResult(true);
+            var request = new AutomationRequest(
+                MahmoudAI.Core.Security.CapabilityType.KeyboardControl,
+                "desktop:keyboard",
+                AutomationOperation.Keyboard,
+                "foreground",
+                text);
+            var result = await _backend.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!result.Succeeded)
+            {
+                _logger.LogWarning("Keyboard input failed: {Error}", result.Error);
+            }
+
+            return result.Succeeded;
         }
     }
 }

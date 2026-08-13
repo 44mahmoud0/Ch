@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using MahmoudAI.Core.Automation;
 using MahmoudAI.Core.Engine;
 using MahmoudAI.Core.Engine.TaskGraph;
+using MahmoudAI.Core.Integration;
 using MahmoudAI.Core.Persona;
 using MahmoudAI.Core.Runtime;
 using MahmoudAI.Core.Security;
@@ -30,6 +32,12 @@ namespace MahmoudAI.App
                     services.AddSingleton<IWinUiContext>(new WinUiContext(dispatcherQueue));
                     services.AddSingleton<IUserApprovalService, WinUIUserApprovalService>();
                     services.AddSingleton<AdvancedPermissionBroker>();
+                    services.AddSingleton<Win32AutomationBackend>();
+                    services.AddSingleton<IWindowsAutomationBackend>(serviceProvider =>
+                        new CapabilityGuardedAutomationBackend(
+                            serviceProvider.GetRequiredService<AdvancedPermissionBroker>(),
+                            serviceProvider.GetRequiredService<Win32AutomationBackend>()));
+                    services.AddSingleton<WindowsAutomationEngine>();
                     services.AddSingleton<PersonaStateMachine>();
                     services.AddSingleton<AiProviderClient>();
 

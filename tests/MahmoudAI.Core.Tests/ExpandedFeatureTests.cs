@@ -2,6 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using MahmoudAI.Core.Automation;
+using MahmoudAI.Core.Integration;
 using MahmoudAI.Core.Persona;
 using MahmoudAI.Core.Runtime;
 using MahmoudAI.Core.Security;
@@ -35,11 +36,20 @@ namespace MahmoudAI.Core.Tests
         [Fact]
         public async Task WindowsAutomationEngine_ShouldBlockUnsafeGamingInputs()
         {
-            var broker = new AdvancedPermissionBroker(NullLogger<AdvancedPermissionBroker>.Instance);
-            var engine = new WindowsAutomationEngine(broker, NullLogger<WindowsAutomationEngine>.Instance);
+            var engine = new WindowsAutomationEngine(
+                new NoOpAutomationBackend(),
+                NullLogger<WindowsAutomationEngine>.Instance);
 
             bool success = await engine.SendTextAsync("enable cheat mode", CancellationToken.None);
             success.Should().BeFalse();
+        }
+
+        private sealed class NoOpAutomationBackend : IWindowsAutomationBackend
+        {
+            public Task<AutomationResult> ExecuteAsync(AutomationRequest request, CancellationToken cancellationToken)
+            {
+                return Task.FromResult(new AutomationResult(true, "not invoked"));
+            }
         }
 
         [Fact]
