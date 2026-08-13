@@ -32,11 +32,12 @@ namespace MahmoudAI.App
                     services.AddSingleton<IWinUiContext>(new WinUiContext(dispatcherQueue));
                     services.AddSingleton<IUserApprovalService, WinUIUserApprovalService>();
                     services.AddSingleton<AdvancedPermissionBroker>();
-                    services.AddSingleton<Win32AutomationBackend>();
+                    services.AddSingleton<IAutomationRiskPolicy, ConservativeAutomationRiskPolicy>();
                     services.AddSingleton<IWindowsAutomationBackend>(serviceProvider =>
-                        new CapabilityGuardedAutomationBackend(
+                        WindowsAutomationComposition.CreateGuardedBackend(
                             serviceProvider.GetRequiredService<AdvancedPermissionBroker>(),
-                            serviceProvider.GetRequiredService<Win32AutomationBackend>()));
+                            serviceProvider.GetRequiredService<ILoggerFactory>(),
+                            serviceProvider.GetRequiredService<IAutomationRiskPolicy>()));
                     services.AddSingleton<WindowsAutomationEngine>();
                     services.AddSingleton<PersonaStateMachine>();
                     services.AddSingleton<AiProviderClient>();

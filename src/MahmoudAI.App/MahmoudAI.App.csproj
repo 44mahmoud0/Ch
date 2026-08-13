@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MahmoudAI.Core\MahmoudAI.Core.csproj" />
+    <ProjectReference Include="..\MahmoudAI.WindowsIntegration\MahmoudAI.WindowsIntegration.csproj" />
     <ProjectReference Include="..\MahmoudAI.Storage\MahmoudAI.Storage.csproj" />
     <ProjectReference Include="..\MahmoudAI.Security\MahmoudAI.Security.csproj" />
     <ProjectReference Include="..\MahmoudAI.Mcp\MahmoudAI.Mcp.csproj" />

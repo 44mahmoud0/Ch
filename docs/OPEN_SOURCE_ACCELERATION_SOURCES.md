@@ -22,3 +22,7 @@ The first implemented slice deliberately adds no high-risk native automation or 
 ## Windows automation research notes
 
 The [FlaUI repository](https://github.com/FlaUI/FlaUI) describes FlaUI as a .NET wrapper around Microsoft's native UI Automation libraries, with UIA2/UIA3 support and access to native UIA objects when higher-level wrappers are insufficient. The [Microsoft CsWin32 guidance](https://learn.microsoft.com/en-us/windows/apps/develop/interop/call-win32-apis) recommends source-generated, type-safe Win32 wrappers, requests APIs through `NativeMethods.txt`, and shows WinUI HWND retrieval through `WindowNative.GetWindowHandle`. The first implementation therefore uses a Windows-specific adapter boundary: semantic UIA work through FlaUI/UIA3 when available, and a narrow CsWin32-generated wrapper for approved window targeting and SendInput fallback. Raw generated APIs remain private to the adapter and are never exposed to TaskGraph agents.
+
+## Wave 2 UIA3 validation
+
+FlaUI upstream describes the library as a .NET wrapper over Microsoft's native UI Automation libraries, with UIA2/UIA3 support and access to native UIA objects when higher-level wrappers are insufficient. The current NuGet release validated for this integration is `FlaUI.UIA3` 5.0.0, targeting .NET 6.0 and compatible with higher frameworks. It will remain behind `IWindowsAutomationBackend` and the Capability Broker, with no direct access from agents. Sources: [FlaUI upstream](https://github.com/FlaUI/FlaUI), [FlaUI.UIA3 5.0.0](https://www.nuget.org/packages/FlaUI.UIA3/5.0.0).

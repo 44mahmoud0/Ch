@@ -36,11 +36,22 @@ namespace MahmoudAI.Core.Tests
         [Fact]
         public async Task WindowsAutomationEngine_ShouldBlockUnsafeGamingInputs()
         {
-            var engine = new WindowsAutomationEngine(
+            var broker = new AdvancedPermissionBroker(NullLogger<AdvancedPermissionBroker>.Instance)
+            {
+                ApprovalDelegate = (_, _, _) => Task.FromResult(true)
+            };
+            var guardedBackend = new CapabilityGuardedAutomationBackend(
+                broker,
                 new NoOpAutomationBackend(),
+                riskPolicy: new ConservativeAutomationRiskPolicy());
+            var engine = new WindowsAutomationEngine(
+                guardedBackend,
                 NullLogger<WindowsAutomationEngine>.Instance);
 
-            bool success = await engine.SendTextAsync("enable cheat mode", CancellationToken.None);
+            bool success = await engine.SendTextAsync(
+                "enable cheat mode",
+                new AutomationContext(TargetProcessName: "game.exe", IsGame: true),
+                CancellationToken.None);
             success.Should().BeFalse();
         }
 

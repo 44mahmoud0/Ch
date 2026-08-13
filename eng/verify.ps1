@@ -58,6 +58,7 @@ $formatProjects = @(
     "src\MahmoudAI.Mcp\MahmoudAI.Mcp.csproj",
     "src\MahmoudAI.Security\MahmoudAI.Security.csproj",
     "src\MahmoudAI.Storage\MahmoudAI.Storage.csproj",
+    "src\MahmoudAI.WindowsIntegration\MahmoudAI.WindowsIntegration.csproj",
     "tests\MahmoudAI.Core.Tests\MahmoudAI.Core.Tests.csproj"
 )
 

@@ -63,12 +63,26 @@ namespace MahmoudAI.Core.Integration
         Capture
     }
 
+    public sealed record AutomationContext(
+        string? MissionId = null,
+        string? TaskId = null,
+        string? TargetProcessName = null,
+        int? TargetProcessId = null,
+        bool IsGame = false,
+        bool IsSensitive = false);
+
     public sealed record AutomationRequest(
         CapabilityType RequiredCapability,
         string Scope,
         AutomationOperation Operation,
         string Target,
-        string? Payload = null);
+        string? Payload = null,
+        AutomationContext? Context = null);
+
+    public interface IAutomationRiskPolicy
+    {
+        bool IsAllowed(AutomationRequest request, out string? reason);
+    }
 
     public sealed record AutomationResult(
         bool Succeeded,
@@ -87,7 +101,63 @@ namespace MahmoudAI.Core.Integration
         string ToolName,
         string Description,
         string JsonSchema,
-        string RequiredScope);
+        string DeclaredScope,
+        string ManifestId = "");
+
+    public sealed record TrustedMcpToolManifest(
+        string ManifestId,
+        string ServerId,
+        string ToolName,
+        CapabilityType Capability,
+        string ApprovedScope);
+
+    public sealed record McpAuthorizationDecision(
+        bool Allowed,
+        CapabilityType Capability,
+        string Scope,
+        string? Reason = null);
+
+    public interface IMcpToolPolicy
+    {
+        McpAuthorizationDecision Authorize(McpToolCallRequest request);
+    }
+
+    public sealed class ManifestMcpToolPolicy : IMcpToolPolicy
+    {
+        private readonly IReadOnlyDictionary<string, TrustedMcpToolManifest> _manifests;
+
+        public ManifestMcpToolPolicy(IEnumerable<TrustedMcpToolManifest> manifests)
+        {
+            var map = new Dictionary<string, TrustedMcpToolManifest>(StringComparer.OrdinalIgnoreCase);
+            foreach (var manifest in manifests)
+            {
+                var key = CreateKey(manifest.ManifestId, manifest.ServerId, manifest.ToolName);
+                if (!map.TryAdd(key, manifest))
+                {
+                    throw new ArgumentException($"Duplicate MCP manifest key '{key}'.", nameof(manifests));
+                }
+            }
+
+            _manifests = map;
+        }
+
+        public McpAuthorizationDecision Authorize(McpToolCallRequest request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            var key = CreateKey(request.Tool.ManifestId, request.Tool.ServerId, request.Tool.ToolName);
+            if (!_manifests.TryGetValue(key, out var manifest))
+            {
+                return new McpAuthorizationDecision(false, CapabilityType.PluginExecution, string.Empty, "No trusted MCP manifest matched the tool identity.");
+            }
+
+            return new McpAuthorizationDecision(true, manifest.Capability, manifest.ApprovedScope);
+        }
+
+        private static string CreateKey(string manifestId, string serverId, string toolName)
+        {
+            return $"{manifestId}\u001f{serverId}\u001f{toolName}";
+        }
+    }
 
     public sealed record McpToolCallRequest(
         McpToolDescriptor Tool,

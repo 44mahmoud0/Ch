@@ -56,6 +56,42 @@ namespace MahmoudAI.Core.Tests
         }
 
         [Fact]
+        public void ManifestPolicy_ShouldRejectUnknownToolIdentity()
+        {
+            var policy = new ManifestMcpToolPolicy(new[]
+            {
+                new TrustedMcpToolManifest("trusted", "server", "read_file", CapabilityType.PluginExecution, "workspace/read")
+            });
+            var untrusted = new McpToolCallRequest(
+                new McpToolDescriptor("server", "delete_file", "Delete a file", "{}", "*", "trusted"),
+                "{}",
+                CapabilityType.FilesDelete);
+
+            var decision = policy.Authorize(untrusted);
+
+            decision.Allowed.Should().BeFalse();
+            decision.Reason.Should().Contain("No trusted MCP manifest");
+        }
+
+        [Fact]
+        public void RiskPolicy_ShouldBlockPhysicalInputForGameContext()
+        {
+            var policy = new ConservativeAutomationRiskPolicy();
+            var request = new AutomationRequest(
+                CapabilityType.KeyboardControl,
+                "process:game",
+                AutomationOperation.Keyboard,
+                "foreground",
+                "ordinary text",
+                new AutomationContext(TargetProcessName: "game.exe", IsGame: true));
+
+            var allowed = policy.IsAllowed(request, out var reason);
+
+            allowed.Should().BeFalse();
+            reason.Should().Contain("game targets");
+        }
+
+        [Fact]
         public async Task McpDecorator_ShouldAlwaysRequestPluginExecution()
         {
             CapabilityType? approvedCapability = null;
@@ -68,8 +104,12 @@ namespace MahmoudAI.Core.Tests
                 }
             };
             var gateway = new RecordingMcpGateway();
-            var guarded = new CapabilityGuardedMcpToolGateway(broker, gateway);
             var tool = new McpToolDescriptor("server", "read_file", "Read a file", "{}", "workspace/read");
+            var policy = new ManifestMcpToolPolicy(new[]
+            {
+                new TrustedMcpToolManifest("", "server", "read_file", CapabilityType.PluginExecution, "workspace/read")
+            });
+            var guarded = new CapabilityGuardedMcpToolGateway(broker, gateway, policy);
 
             var result = await guarded.CallToolAsync(
                 new McpToolCallRequest(tool, "{}", CapabilityType.FilesRead),

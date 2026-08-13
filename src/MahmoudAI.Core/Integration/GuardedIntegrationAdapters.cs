@@ -6,19 +6,22 @@ using MahmoudAI.Core.Security;
 
 namespace MahmoudAI.Core.Integration
 {
-    public sealed class CapabilityGuardedAutomationBackend : IWindowsAutomationBackend
+    public sealed class CapabilityGuardedAutomationBackend : IWindowsAutomationBackend, IDisposable
     {
         private readonly AdvancedPermissionBroker _permissionBroker;
         private readonly IWindowsAutomationBackend _inner;
+        private readonly IAutomationRiskPolicy _riskPolicy;
         private readonly TimeSpan _leaseDuration;
 
         public CapabilityGuardedAutomationBackend(
             AdvancedPermissionBroker permissionBroker,
             IWindowsAutomationBackend inner,
-            TimeSpan? leaseDuration = null)
+            TimeSpan? leaseDuration = null,
+            IAutomationRiskPolicy? riskPolicy = null)
         {
             _permissionBroker = permissionBroker ?? throw new ArgumentNullException(nameof(permissionBroker));
             _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+            _riskPolicy = riskPolicy ?? new ConservativeAutomationRiskPolicy();
             _leaseDuration = leaseDuration ?? TimeSpan.FromMinutes(5);
             if (_leaseDuration <= TimeSpan.Zero)
             {
@@ -31,6 +34,11 @@ namespace MahmoudAI.Core.Integration
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(request);
+            if (!_riskPolicy.IsAllowed(request, out var riskReason))
+            {
+                return new AutomationResult(false, null, riskReason);
+            }
+
             var lease = await _permissionBroker.RequestCapabilityLeaseAsync(
                 request.RequiredCapability,
                 request.Scope,
@@ -46,21 +54,32 @@ namespace MahmoudAI.Core.Integration
                 lease.RevocationToken);
             return await _inner.ExecuteAsync(request, linkedCancellation.Token).ConfigureAwait(false);
         }
+
+        public void Dispose()
+        {
+            if (_inner is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        }
     }
 
     public sealed class CapabilityGuardedMcpToolGateway : IMcpToolGateway
     {
         private readonly AdvancedPermissionBroker _permissionBroker;
         private readonly IMcpToolGateway _inner;
+        private readonly IMcpToolPolicy _policy;
         private readonly TimeSpan _leaseDuration;
 
         public CapabilityGuardedMcpToolGateway(
             AdvancedPermissionBroker permissionBroker,
             IMcpToolGateway inner,
+            IMcpToolPolicy policy,
             TimeSpan? leaseDuration = null)
         {
             _permissionBroker = permissionBroker ?? throw new ArgumentNullException(nameof(permissionBroker));
             _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+            _policy = policy ?? throw new ArgumentNullException(nameof(policy));
             _leaseDuration = leaseDuration ?? TimeSpan.FromMinutes(5);
             if (_leaseDuration <= TimeSpan.Zero)
             {
@@ -79,14 +98,20 @@ namespace MahmoudAI.Core.Integration
         {
             ArgumentNullException.ThrowIfNull(request);
             ArgumentNullException.ThrowIfNull(request.Tool);
+            var decision = _policy.Authorize(request);
+            if (!decision.Allowed)
+            {
+                return new McpToolCallResult(false, "{}", decision.Reason ?? "MCP tool denied by policy.");
+            }
+
             var lease = await _permissionBroker.RequestCapabilityLeaseAsync(
-                CapabilityType.PluginExecution,
-                request.Tool.RequiredScope,
+                decision.Capability,
+                decision.Scope,
                 _leaseDuration,
                 cancellationToken).ConfigureAwait(false);
             if (lease is null)
             {
-                return new McpToolCallResult(false, "{}", "PluginExecution capability denied by policy or user.");
+                return new McpToolCallResult(false, "{}", "MCP capability denied by policy or user.");
             }
 
             using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(

@@ -1,0 +1,10 @@
+SetCursorPos
+GetForegroundWindow
+SetForegroundWindow
+GetWindowTextLength
+GetWindowText
+IsWindow
+IsWindowVisible
+GetWindowThreadProcessId
+EnumWindows
+SendInput

@@ -70,3 +70,18 @@
 - [x] Windows automation: add cancellation, denial, lease expiry, revocation, and Emergency Stop regression coverage (46/46 core tests passing)
 - [x] Windows automation: add Windows smoke-test strategy and document native interop limitations
 - [x] Windows automation: run the Windows Quality Gate and preserve a clean GitHub milestone
+
+- [x] Wave 2: Close DI automation bypass by making Win32AutomationBackend internal and exposing only guarded IWindowsAutomationBackend
+- [x] Wave 2: Fix lease timing race by taking timestamp after approval and using a robust TimeProvider abstraction
+- [x] Wave 2: Eliminate lease handle cancellation source races by storing immutable cancellation token snapshots
+- [x] Wave 2: Strengthen window targeting with strict HWND validation, process identity, and pre-action revalidation
+- [x] Wave 2: Replace tool-controlled MCP scopes with Mahmoud-owned policy derivation from verified manifests
+- [x] Wave 2: Remove legacy synchronous RequestCapability(...) method to prevent future deadlocks
+- [x] Wave 2: Move text-pattern filters into contextual risk and policy evaluation rather than static string matching
+- [x] Wave 2: Replace hand-maintained Win32 declarations with pinned CsWin32-generated interop
+- [x] Wave 2: Add a UIA3 semantic automation adapter boundary with safe fallback behavior
+
+- [x] Wave 2: Include MahmoudAI.WindowsIntegration in deterministic whitespace verification and add semantic fallback regression coverage
+- [ ] Wave 2: Run the complete Windows interactive smoke test for UIA3, HWND revalidation, and CsWin32 input on a disposable desktop session
+
+- [ ] Push Wave 2 hardening and WindowsIntegration assembly to GitHub repository 44mahmoud0/Ch main branch

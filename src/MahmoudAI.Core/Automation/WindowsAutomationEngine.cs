@@ -33,21 +33,24 @@ namespace MahmoudAI.Core.Automation
             return result.Succeeded;
         }
 
-        public async Task<bool> SendTextAsync(string text, CancellationToken cancellationToken)
+        public Task<bool> SendTextAsync(string text, CancellationToken cancellationToken)
         {
-            if (text.Contains("cheat", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("bypass", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogWarning("Gaming safety policy triggered: blocked restricted input pattern.");
-                return false;
-            }
+            return SendTextAsync(text, new AutomationContext(TargetProcessName: "foreground"), cancellationToken);
+        }
 
+        public async Task<bool> SendTextAsync(
+            string text,
+            AutomationContext context,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
             var request = new AutomationRequest(
                 MahmoudAI.Core.Security.CapabilityType.KeyboardControl,
                 "desktop:keyboard",
                 AutomationOperation.Keyboard,
                 "foreground",
-                text);
+                text,
+                context);
             var result = await _backend.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
             if (!result.Succeeded)
             {

@@ -31,16 +31,16 @@ namespace MahmoudAI.Core.Security
 
     public sealed class CapabilityLeaseHandle : IDisposable
     {
-        private readonly CancellationTokenSource _revocationSource;
+        private readonly CancellationToken _revocationToken;
 
-        internal CapabilityLeaseHandle(CapabilityLease lease, CancellationTokenSource revocationSource)
+        internal CapabilityLeaseHandle(CapabilityLease lease, CancellationToken revocationToken)
         {
             Lease = lease;
-            _revocationSource = revocationSource;
+            _revocationToken = revocationToken;
         }
 
         public CapabilityLease Lease { get; }
-        public CancellationToken RevocationToken => _revocationSource.Token;
+        public CancellationToken RevocationToken => _revocationToken;
 
         public void Dispose()
         {
@@ -51,6 +51,7 @@ namespace MahmoudAI.Core.Security
     public class AdvancedPermissionBroker
     {
         private readonly ILogger<AdvancedPermissionBroker> _logger;
+        private readonly TimeProvider _timeProvider;
         private readonly ConcurrentDictionary<string, CapabilityLease> _activeLeases = new();
         private readonly ConcurrentDictionary<string, CancellationTokenSource> _leaseRevocations = new();
         public bool EmergencyStopTriggered { get; private set; }
@@ -60,10 +61,14 @@ namespace MahmoudAI.Core.Security
 
         public Func<CapabilityType, string, CancellationToken, Task<bool>>? ApprovalDelegate { get; set; }
 
-        public AdvancedPermissionBroker(ILogger<AdvancedPermissionBroker> logger, IUserApprovalService? approvalService = null)
+        public AdvancedPermissionBroker(
+            ILogger<AdvancedPermissionBroker> logger,
+            IUserApprovalService? approvalService = null,
+            TimeProvider? timeProvider = null)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _approvalService = approvalService;
+            _timeProvider = timeProvider ?? TimeProvider.System;
         }
 
         public void TriggerEmergencyStop()
@@ -86,11 +91,6 @@ namespace MahmoudAI.Core.Security
             SafeModeActive = false;
             RevokeAll();
             _logger.LogWarning("Emergency stop reset by explicit user action.");
-        }
-
-        public bool RequestCapability(CapabilityType capability, string scope, TimeSpan duration)
-        {
-            return RequestCapabilityAsync(capability, scope, duration, CancellationToken.None).GetAwaiter().GetResult();
         }
 
         public async Task<bool> RequestCapabilityAsync(
@@ -122,7 +122,7 @@ namespace MahmoudAI.Core.Security
                 return null;
             }
 
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
             RemoveExpiredLeases(now);
 
             foreach (var lease in _activeLeases.Values)
@@ -130,7 +130,7 @@ namespace MahmoudAI.Core.Security
                 if (lease.Capability == capability && lease.ExpiresAt > now && ScopeMatches(lease.Scope, scope)
                     && _leaseRevocations.TryGetValue(lease.LeaseId, out var existingRevocation))
                 {
-                    return new CapabilityLeaseHandle(lease, existingRevocation);
+                    return new CapabilityLeaseHandle(lease, existingRevocation.Token);
                 }
             }
 
@@ -146,12 +146,13 @@ namespace MahmoudAI.Core.Security
                 return null;
             }
 
+            var grantedAt = _timeProvider.GetUtcNow().UtcDateTime;
             var newLease = new CapabilityLease(
                 Guid.NewGuid().ToString("N"),
                 capability,
                 scope,
-                now,
-                now.Add(duration),
+                grantedAt,
+                grantedAt.Add(duration),
                 "UserApproved");
             var revocationSource = new CancellationTokenSource();
             revocationSource.CancelAfter(duration);
@@ -162,7 +163,7 @@ namespace MahmoudAI.Core.Security
                 newLease.LeaseId,
                 capability,
                 scope);
-            return new CapabilityLeaseHandle(newLease, revocationSource);
+            return new CapabilityLeaseHandle(newLease, revocationSource.Token);
         }
 
         public bool RevokeLease(string leaseId)
