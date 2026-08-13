@@ -9,6 +9,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <WindowsAppSdkSelfContained>true</WindowsAppSdkSelfContained>
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <DisableWinUIXamlCompilerTask>true</DisableWinUIXamlCompilerTask>
   </PropertyGroup>
 
   <ItemGroup>
