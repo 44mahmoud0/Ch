@@ -1,5 +1,7 @@
 using Microsoft.UI.Xaml;
 
+using Microsoft.UI.Dispatching;
+
 namespace MahmoudAI.App
 {
     public partial class App : Application

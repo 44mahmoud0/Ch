@@ -8,13 +8,18 @@ namespace MahmoudAI.Core.Engine.TaskGraph
 {
     public sealed class TaskGraphScheduler
     {
-        private readonly TaskExecutor _executor;
-        private readonly Action<MissionTaskEvent>? _eventListener;
+        private readonly ITaskExecutor _executor;
+        private readonly IMissionEventSink _eventSink;
 
-        public TaskGraphScheduler(TaskExecutor? executor = null, Action<MissionTaskEvent>? eventListener = null)
+        public TaskGraphScheduler(ITaskExecutor? executor = null, IMissionEventSink? eventSink = null)
         {
-            _eventListener = eventListener;
-            _executor = executor ?? new TaskExecutor(_eventListener);
+            _eventSink = eventSink ?? NullMissionEventSink.Instance;
+            _executor = executor ?? new TaskExecutor(_eventSink);
+        }
+
+        public TaskGraphScheduler(ITaskExecutor? executor, Action<MissionTaskEvent>? eventListener)
+            : this(executor, eventListener is null ? null : new DelegateMissionEventSink(eventListener))
+        {
         }
 
         public async Task<GraphExecutionResult> ExecuteGraphAsync(
@@ -23,22 +28,35 @@ namespace MahmoudAI.Core.Engine.TaskGraph
             int maxConcurrency = 4,
             CancellationToken cancellationToken = default)
         {
+            if (maxConcurrency < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxConcurrency), maxConcurrency, "maxConcurrency must be at least 1.");
+            }
+
+            ArgumentNullException.ThrowIfNull(missionId);
+            ArgumentNullException.ThrowIfNull(taskDefinitions);
+
             var tasks = taskDefinitions.ToList();
             GraphValidator.Validate(tasks);
 
             var startedAt = DateTimeOffset.UtcNow;
-            var taskMap = tasks.ToDictionary(t => t.Id, t => t);
-            
-            var pending = new HashSet<string>(tasks.Select(t => t.Id));
+            var taskMap = tasks.ToDictionary(task => task.Id, task => task);
+            var pending = new HashSet<string>(tasks.Select(task => task.Id));
             var running = new Dictionary<string, Task<TaskExecutionResult>>();
             var results = new Dictionary<string, TaskExecutionResult>();
+            var isCancelled = false;
+            var isStalled = false;
 
-            foreach (var id in pending)
+            foreach (var task in tasks)
             {
-                _eventListener?.Invoke(new MissionTaskEvent(missionId, id, MissionTaskEventType.Queued, startedAt, 0, null));
+                await EmitAsync(new MissionTaskEvent(
+                    missionId,
+                    task.Id,
+                    MissionTaskEventType.Queued,
+                    startedAt,
+                    0,
+                    null)).ConfigureAwait(false);
             }
-
-            bool isCancelled = false;
 
             try
             {
@@ -46,122 +64,189 @@ namespace MahmoudAI.Core.Engine.TaskGraph
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // Start ready tasks up to maxConcurrency
                     while (running.Count < maxConcurrency)
                     {
-                        var readyId = pending.FirstOrDefault(id => AreDependenciesSatisfied(id, taskMap, results));
-                        if (readyId == null) break;
+                        var readyTask = tasks.FirstOrDefault(task =>
+                            pending.Contains(task.Id) &&
+                            AreDependenciesSatisfied(task, results));
 
-                        pending.Remove(readyId);
-                        var def = taskMap[readyId];
+                        if (readyTask is null)
+                        {
+                            break;
+                        }
 
-                        var workerTask = _executor.ExecuteAsync(missionId, def, cancellationToken);
-                        running[readyId] = workerTask;
+                        pending.Remove(readyTask.Id);
+                        running[readyTask.Id] = _executor.ExecuteAsync(missionId, readyTask, cancellationToken);
                     }
 
                     if (running.Count == 0)
                     {
-                        // If nothing is running and pending is not empty, graph is stalled due to unmet deps / failures
+                        // No task can make progress while pending work remains: this is a real graph stall.
+                        isStalled = pending.Count > 0;
                         break;
                     }
 
-                    // Task.WhenAny instead of polling
-                    var finishedTask = await Task.WhenAny(running.Values);
-                    running = running.Where(kv => kv.Value != finishedTask).ToDictionary(kv => kv.Key, kv => kv.Value);
+                    var finishedTask = await Task.WhenAny(running.Values).ConfigureAwait(false);
+                    var finishedEntry = running.First(entry => ReferenceEquals(entry.Value, finishedTask));
+                    running.Remove(finishedEntry.Key);
 
-                    var res = await finishedTask;
-                    results[res.TaskId] = res;
+                    var result = await ReadWorkerResultAsync(
+                        finishedEntry.Key,
+                        finishedTask,
+                        isCancelled: false).ConfigureAwait(false);
+                    results[result.TaskId] = result;
 
-                    // Propagate dependency failures if needed
-                    PropagateFailures(taskMap, results, pending);
+                    await PropagateFailuresAsync(missionId, taskMap, results, pending).ConfigureAwait(false);
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 isCancelled = true;
             }
 
-            // Mark any remaining pending tasks as Cancelled or Skipped
-            foreach (var id in pending.ToList())
-            {
-                if (!results.ContainsKey(id))
-                {
-                    var status = isCancelled ? TaskExecutionStatus.Cancelled : TaskExecutionStatus.SkippedDependencyFailure;
-                    results[id] = new TaskExecutionResult(id, status, 0, TimeSpan.Zero, "Graph terminated before execution.");
-                    _eventListener?.Invoke(new MissionTaskEvent(missionId, id, MissionTaskEventType.Skipped, DateTimeOffset.UtcNow, 0, "Dependency or graph termination."));
-                }
-                pending.Remove(id);
-            }
+            // Cancellation must not discard results from workers that were already started.
+            await DrainRunningWorkersAsync(missionId, running, results, isCancelled: isCancelled).ConfigureAwait(false);
+            running.Clear();
 
-            // Ensure absolute worker quiescence
-            if (running.Count > 0)
+            // Give every task a terminal result. Pending work is cancelled only when the mission was cancelled;
+            // otherwise it is skipped because the graph is stalled or its dependency chain failed.
+            foreach (var id in pending.ToArray())
             {
-                try
-                {
-                    await Task.WhenAll(running.Values);
-                }
-                catch
-                {
-                    // Ignore background faults during final draining
-                }
+                var status = isCancelled
+                    ? TaskExecutionStatus.Cancelled
+                    : TaskExecutionStatus.SkippedDependencyFailure;
+                var eventType = isCancelled
+                    ? MissionTaskEventType.Cancelled
+                    : MissionTaskEventType.Skipped;
+                var message = isCancelled
+                    ? "Mission cancellation prevented execution."
+                    : "Task could not execute because the graph was stalled or a dependency failed.";
+
+                results[id] = new TaskExecutionResult(id, status, 0, TimeSpan.Zero, message);
+                await EmitAsync(new MissionTaskEvent(
+                    missionId,
+                    id,
+                    eventType,
+                    DateTimeOffset.UtcNow,
+                    0,
+                    message)).ConfigureAwait(false);
             }
+            pending.Clear();
 
             var finishedAt = DateTimeOffset.UtcNow;
-            
-            GraphExecutionStatus graphStatus;
-            if (isCancelled)
-            {
-                graphStatus = GraphExecutionStatus.Cancelled;
-            }
-            else if (results.Values.Any(r => r.Status == TaskExecutionStatus.Failed || r.Status == TaskExecutionStatus.TimedOut))
-            {
-                graphStatus = GraphExecutionStatus.Failed;
-            }
-            else if (pending.Count > 0)
-            {
-                graphStatus = GraphExecutionStatus.Stalled;
-            }
-            else
-            {
-                graphStatus = GraphExecutionStatus.Completed;
-            }
+            var graphStatus = isCancelled
+                ? GraphExecutionStatus.Cancelled
+                : isStalled
+                    ? GraphExecutionStatus.Stalled
+                    : results.Values.Any(result =>
+                        result.Status is TaskExecutionStatus.Failed or TaskExecutionStatus.TimedOut)
+                        ? GraphExecutionStatus.Failed
+                        : GraphExecutionStatus.Completed;
 
             return new GraphExecutionResult(graphStatus, results, startedAt, finishedAt);
         }
 
-        private static bool AreDependenciesSatisfied(string taskId, Dictionary<string, MissionTaskDefinition> taskMap, Dictionary<string, TaskExecutionResult> results)
+        private static bool AreDependenciesSatisfied(
+            MissionTaskDefinition task,
+            IReadOnlyDictionary<string, TaskExecutionResult> results)
         {
-            var def = taskMap[taskId];
-            foreach (var dep in def.Dependencies)
+            foreach (var dependencyId in task.Dependencies)
             {
-                if (!results.TryGetValue(dep, out var res)) return false;
-                if (res.Status != TaskExecutionStatus.Succeeded) return false;
+                if (!results.TryGetValue(dependencyId, out var dependencyResult) ||
+                    dependencyResult.Status != TaskExecutionStatus.Succeeded)
+                {
+                    return false;
+                }
             }
+
             return true;
         }
 
-        private static void PropagateFailures(Dictionary<string, MissionTaskDefinition> taskMap, Dictionary<string, TaskExecutionResult> results, HashSet<string> pending)
+        private async Task PropagateFailuresAsync(
+            string missionId,
+            IReadOnlyDictionary<string, MissionTaskDefinition> taskMap,
+            IDictionary<string, TaskExecutionResult> results,
+            ISet<string> pending)
         {
-            // Check if any pending tasks have dependencies that failed or were skipped
-            bool changed = true;
-            while (changed)
+            bool changed;
+            do
             {
                 changed = false;
-                foreach (var id in pending.ToList())
+                foreach (var id in pending.ToArray())
                 {
-                    var def = taskMap[id];
-                    foreach (var dep in def.Dependencies)
+                    var task = taskMap[id];
+                    var failedDependency = task.Dependencies
+                        .Select(dependencyId => results.TryGetValue(dependencyId, out var result)
+                            ? (dependencyId, result)
+                            : (dependencyId, result: null))
+                        .FirstOrDefault(item => item.result is not null && item.result.Status != TaskExecutionStatus.Succeeded);
+
+                    if (failedDependency.result is null)
                     {
-                        if (results.TryGetValue(dep, out var res) && res.Status != TaskExecutionStatus.Succeeded)
-                        {
-                            pending.Remove(id);
-                            results[id] = new TaskExecutionResult(id, TaskExecutionStatus.SkippedDependencyFailure, 0, TimeSpan.Zero, $"Dependency '{dep}' failed or skipped.");
-                            changed = true;
-                            break;
-                        }
+                        continue;
                     }
+
+                    pending.Remove(id);
+                    var message = $"Dependency '{failedDependency.dependencyId}' failed or was cancelled.";
+                    results[id] = new TaskExecutionResult(
+                        id,
+                        TaskExecutionStatus.SkippedDependencyFailure,
+                        0,
+                        TimeSpan.Zero,
+                        message);
+                    await EmitAsync(new MissionTaskEvent(
+                        missionId,
+                        id,
+                        MissionTaskEventType.Skipped,
+                        DateTimeOffset.UtcNow,
+                        0,
+                        message)).ConfigureAwait(false);
+                    changed = true;
                 }
+            } while (changed);
+        }
+
+        private async Task DrainRunningWorkersAsync(
+            string missionId,
+            IReadOnlyDictionary<string, Task<TaskExecutionResult>> running,
+            IDictionary<string, TaskExecutionResult> results,
+            bool isCancelled)
+        {
+            foreach (var entry in running.ToArray())
+            {
+                if (results.ContainsKey(entry.Key))
+                {
+                    continue;
+                }
+
+                var result = await ReadWorkerResultAsync(entry.Key, entry.Value, isCancelled).ConfigureAwait(false);
+                results[result.TaskId] = result;
             }
+        }
+
+        private static async Task<TaskExecutionResult> ReadWorkerResultAsync(
+            string taskId,
+            Task<TaskExecutionResult> worker,
+            bool isCancelled)
+        {
+            try
+            {
+                return await worker.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                var message = isCancelled ? "Worker cancelled during mission shutdown." : "Worker cancelled.";
+                return new TaskExecutionResult(taskId, TaskExecutionStatus.Cancelled, 0, TimeSpan.Zero, message);
+            }
+            catch (Exception ex)
+            {
+                return new TaskExecutionResult(taskId, TaskExecutionStatus.Failed, 0, TimeSpan.Zero, ex.Message);
+            }
+        }
+
+        private ValueTask EmitAsync(MissionTaskEvent evt)
+        {
+            return _eventSink.EmitAsync(evt, CancellationToken.None);
         }
     }
 }

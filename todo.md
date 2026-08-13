@@ -35,3 +35,18 @@
 - [ ] Add MSIX/App Installer and optional Velopack release workflows with signing documentation and SBOM/hash generation.
 - [ ] Add failure-injection, profile-isolation, permission-expiry, recovery, and duplicate-side-effect tests.
 - [ ] Reconcile all documentation and feature statuses after implementation; do not claim production readiness before Windows verification.
+
+- [x] V2.1: Preserve every running worker result after scheduler cancellation
+- [x] V2.1: Report stalled graphs before clearing pending tasks
+- [x] V2.1: Reject maxConcurrency values less than one
+- [x] V2.1: Include all retry attempts and backoff in task duration
+- [x] V2.1: Validate RetryPolicy inputs before execution
+- [x] V2.1: Emit Skipped events for dependency-failed tasks
+- [x] V2.1: Emit Cancelled events when cancellation occurs during retry backoff
+- [x] V2.1: Add asynchronous IMissionEventSink boundary for persistence and telemetry
+- [x] V2.1: Expand scheduler and executor regression coverage
+- [x] V2.1: Run available core tests (36/36 passing)
+- [ ] V2.1: Confirm Windows quality-gate is green and document any remaining warnings
+- [ ] V2.1: Commit hardened milestone to GitHub
+- [x] Fix App.xaml.cs DispatcherQueue namespace/reference for the WinUI Composition Root
+- [x] Fix AppHost.Initialize call to pass the UI DispatcherQueue without breaking DI startup

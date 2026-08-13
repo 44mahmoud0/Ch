@@ -36,11 +36,12 @@ namespace MahmoudAI.App
 
         public static T GetRequiredService<T>() where T : notnull
         {
-            if (_host == null)
+            if (_host is null)
             {
-                Initialize();
+                throw new InvalidOperationException("AppHost must be initialized from the WinUI UI thread before resolving services.");
             }
-            return _host!.Services.GetRequiredService<T>();
+
+            return _host.Services.GetRequiredService<T>();
         }
     }
 }
