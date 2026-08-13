@@ -16,7 +16,7 @@ namespace MahmoudAI.Core.Tests
             var pipeline = new OcrPipeline(primary, null, NullLogger<OcrPipeline>.Instance);
 
             var metadata = new ScreenFrameMetadata("f1", DateTimeOffset.UtcNow, 10, 10, 40, 1.0f, 1.0f, 0, 0, 100, (nint)123);
-            using var failedFrame = new RedactedScreenFrame(ScreenCaptureStatus.Denied, metadata, null, 0, "Denied");
+            using var failedFrame = new RedactedScreenFrame(ScreenCaptureStatus.Denied, metadata, null, 0, null, "Denied");
 
             var result = await pipeline.RecognizeAsync(failedFrame, new OcrRequest(), CancellationToken.None);
 

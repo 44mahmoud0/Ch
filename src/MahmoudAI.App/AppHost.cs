@@ -55,6 +55,7 @@ namespace MahmoudAI.App
                         null,
                         sp.GetRequiredService<ILogger<OcrPipeline>>()));
                     services.AddSingleton<ScreenFusionEngine>();
+                    services.AddSingleton<IScreenObservationService, ScreenObservationService>();
                     services.AddSingleton<PersonaStateMachine>();
                     services.AddSingleton<AiProviderClient>();
 

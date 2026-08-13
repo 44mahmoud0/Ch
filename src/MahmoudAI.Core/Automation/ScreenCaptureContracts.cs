@@ -61,6 +61,7 @@ namespace MahmoudAI.Core.Automation
         ScreenCaptureStatus Status,
         ScreenFrameMetadata? Metadata,
         byte[]? PixelBuffer,
+        FrameCoordinateTransform? Transform = null,
         string? Error = null) : IDisposable
     {
         public bool Succeeded => Status == ScreenCaptureStatus.Captured;
@@ -93,6 +94,7 @@ namespace MahmoudAI.Core.Automation
         ScreenFrameMetadata? Metadata,
         byte[]? PixelBuffer,
         int RedactionCount,
+        FrameCoordinateTransform? Transform = null,
         string? Error = null) : IDisposable
     {
         public bool Succeeded => Status == ScreenCaptureStatus.Captured;

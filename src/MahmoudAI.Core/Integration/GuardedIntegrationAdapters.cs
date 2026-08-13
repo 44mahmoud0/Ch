@@ -213,6 +213,7 @@ namespace MahmoudAI.Core.Integration
                     ScreenCaptureStatus.UnsupportedTarget,
                     null,
                     null,
+                    null,
                     "Screen Capture V1 supports only a non-zero window HWND target.");
             }
 
@@ -226,7 +227,7 @@ namespace MahmoudAI.Core.Integration
                 Context: request.Context ?? new AutomationContext(TargetProcessId: request.Target.ProcessId));
             if (!_riskPolicy.IsAllowed(automationRequest, out var riskReason))
             {
-                return new CapturedScreenFrame(ScreenCaptureStatus.Denied, null, null, riskReason);
+                return new CapturedScreenFrame(ScreenCaptureStatus.Denied, null, null, null, riskReason);
             }
 
             CapabilityLeaseHandle? leaseHandle;
@@ -240,12 +241,12 @@ namespace MahmoudAI.Core.Integration
             }
             catch (OperationCanceledException)
             {
-                return new CapturedScreenFrame(ScreenCaptureStatus.Cancelled, null, null, "Screen capture was cancelled before capability approval completed.");
+                return new CapturedScreenFrame(ScreenCaptureStatus.Cancelled, null, null, null, "Screen capture was cancelled before capability approval completed.");
             }
 
             if (leaseHandle is null)
             {
-                return new CapturedScreenFrame(ScreenCaptureStatus.Denied, null, null, "Screen capture capability denied by policy or user.");
+                return new CapturedScreenFrame(ScreenCaptureStatus.Denied, null, null, null, "Screen capture capability denied by policy or user.");
             }
 
             using (leaseHandle)
@@ -259,7 +260,7 @@ namespace MahmoudAI.Core.Integration
                 }
                 catch (OperationCanceledException)
                 {
-                    return new CapturedScreenFrame(ScreenCaptureStatus.Cancelled, null, null, "Screen capture was cancelled or its capability lease was revoked.");
+                    return new CapturedScreenFrame(ScreenCaptureStatus.Cancelled, null, null, null, "Screen capture was cancelled or its capability lease was revoked.");
                 }
             }
         }

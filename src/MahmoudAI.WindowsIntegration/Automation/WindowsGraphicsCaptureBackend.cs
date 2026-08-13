@@ -339,7 +339,7 @@ namespace MahmoudAI.WindowsIntegration.Automation
 
         private static CapturedScreenFrame Failure(ScreenCaptureStatus status, string error)
         {
-            return new CapturedScreenFrame(status, null, null, error);
+            return new CapturedScreenFrame(status, null, null, null, error);
         }
 
         private void ThrowIfDisposed()

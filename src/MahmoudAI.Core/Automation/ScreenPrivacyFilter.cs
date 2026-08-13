@@ -30,6 +30,7 @@ namespace MahmoudAI.Core.Automation
                     frame.Metadata,
                     frame.PixelBuffer,
                     0,
+                    frame.Transform,
                     frame.Error));
             }
 
@@ -53,6 +54,7 @@ namespace MahmoudAI.Core.Automation
                 frame.Metadata,
                 pixelBuffer,
                 redactionCount,
+                frame.Transform,
                 frame.Error));
         }
     }
