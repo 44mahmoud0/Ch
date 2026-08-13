@@ -28,5 +28,21 @@ namespace MahmoudAI.Core.Automation
                 leaseDuration,
                 riskPolicy);
         }
+
+        public static IUiaSemanticAutomation CreateGuardedSemanticAutomation(
+            AdvancedPermissionBroker permissionBroker,
+            ILoggerFactory loggerFactory,
+            IAutomationRiskPolicy? riskPolicy = null,
+            TimeSpan? leaseDuration = null)
+        {
+            ArgumentNullException.ThrowIfNull(permissionBroker);
+            ArgumentNullException.ThrowIfNull(loggerFactory);
+
+            return new CapabilityGuardedUiaSemanticAutomation(
+                permissionBroker,
+                new Uia3AutomationBackend(),
+                leaseDuration,
+                riskPolicy);
+        }
     }
 }

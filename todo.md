@@ -90,3 +90,6 @@
 - [x] Add InternalsVisibleTo only for WindowsIntegration test assembly and unify solution configuration mappings
 - [x] Add durable GateSummary.json with stage status and failed-stage diagnostics
 - [x] Make SQLite test cleanup deterministic with SqliteConnection.ClearAllPools() to prevent Windows file locks under parallel xUnit execution
+- [x] Add typed, bounded UIA semantic query and pattern execution APIs behind the guarded integration boundary
+- [x] Add deterministic WindowsIntegration TestHost controls and behavioral UIA tests
+- [x] Update Windows automation documentation for semantic selectors, ambiguity, timeout, and pattern policy
