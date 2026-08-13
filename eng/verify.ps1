@@ -30,20 +30,31 @@ if (!$msbuild) {
     throw "Visual Studio MSBuild was not found."
 }
 
+function Write-StageResult($stage, $exitCode) {
+    $result = [PSCustomObject]@{ Stage = $stage; ExitCode = $exitCode; Timestamp = (Get-Date).ToString("o") }
+    $result | ConvertTo-Json | Out-File -Encoding utf8 "artifacts\$stage.json"
+    if ($exitCode -ne 0) {
+        Write-Error "Stage '$stage' failed with exit code $exitCode."
+    }
+}
+
 Write-Host "=== RESTORE + SECURITY AUDIT ==="
 & $msbuild MahmoudAI.sln /t:Restore /p:Configuration=Release
+Write-StageResult "Restore" $LASTEXITCODE
 if ($LASTEXITCODE -ne 0) {
     throw "Restore failed."
 }
 
 Write-Host "=== FULL WINDOWS BUILD ==="
 & $msbuild MahmoudAI.sln /m /t:Build /p:Configuration=Release /bl:artifacts\build.binlog
+Write-StageResult "Build" $LASTEXITCODE
 if ($LASTEXITCODE -ne 0) {
     throw "Windows build failed."
 }
 
 Write-Host "=== TESTS ==="
 dotnet test MahmoudAI.sln --configuration Release --no-build --logger "trx;LogFileName=tests.trx"
+Write-StageResult "Tests" $LASTEXITCODE
 if ($LASTEXITCODE -ne 0) {
     throw "Tests failed."
 }
@@ -65,7 +76,9 @@ $formatProjects = @(
 foreach ($project in $formatProjects) {
     Write-Host "Formatting check: $project"
     & dotnet format $project whitespace --verify-no-changes --no-restore --verbosity minimal
-    if ($LASTEXITCODE -ne 0) {
+    $formatCode = $LASTEXITCODE
+    Write-StageResult "Format-$([System.IO.Path]::GetFileNameWithoutExtension($project))" $formatCode
+    if ($formatCode -ne 0) {
         throw "Code formatting/analyzer gate failed for $project."
     }
 }
